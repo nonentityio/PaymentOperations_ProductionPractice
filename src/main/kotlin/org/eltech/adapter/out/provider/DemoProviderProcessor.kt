@@ -24,7 +24,9 @@ class DemoProviderProcessor(
                             return@onSuccess
                         }
 
-                        if (payment.requisite.startsWith("BAD", ignoreCase = true)) {
+                        if (payment.requisite.contains("HOLD", ignoreCase = true)) {
+                            holdPaymentBeforeProvider(paymentId, providerId)
+                        } else if (payment.requisite.startsWith("BAD", ignoreCase = true)) {
                             rejectInvalidRequisite(paymentId, providerId)
                         } else if (payment.requisite.contains("TIMEOUT", ignoreCase = true)) {
                             confirmPayment(paymentId).onSuccess {
@@ -42,6 +44,18 @@ class DemoProviderProcessor(
 
     private fun confirmPayment(paymentId: UUID) =
         repository.updateStatus(paymentId, PaymentStatus.CONFIRMED, null)
+
+    private fun holdPaymentBeforeProvider(paymentId: UUID, providerId: String) {
+        vertx.setTimer(10_000) {
+            repository.fetchPayment(paymentId).onSuccess { payment ->
+                if (payment.status != PaymentStatus.CANCELLED) {
+                    confirmPayment(paymentId).onSuccess {
+                        acceptPayment(paymentId, providerId)
+                    }
+                }
+            }
+        }
+    }
 
     private fun rejectInvalidRequisite(paymentId: UUID, providerId: String) {
         repository.addProviderResponse(paymentId, providerId, 422, "REQUISITE_INVALID")
