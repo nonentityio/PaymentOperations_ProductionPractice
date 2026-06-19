@@ -114,9 +114,9 @@ tasks.register<Exec>("compileNativeRouting") {
 }
 
 tasks.register("stage") {
-    dependsOn("installDist")
+    dependsOn("compileNativeValidation", "compileNativeRouting", "installDist")
 }
 
 tasks.register("nativeStage") {
-    dependsOn("compileNativeValidation", "compileNativeRouting", "installDist")
+    dependsOn("stage")
 }

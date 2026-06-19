@@ -16,6 +16,8 @@ import org.eltech.adapter.out.persistence.PostgresPaymentRepository
 import org.eltech.adapter.out.provider.DemoProviderProcessor
 import org.eltech.application.usecase.PaymentService
 import org.eltech.infrastructure.db.Database
+import org.eltech.infrastructure.routing.NativePaymentRouter
+import org.eltech.infrastructure.validation.NativePaymentValidator
 import org.eltech.infrastructure.vertx.EventBusAddresses
 import org.eltech.util.envInt
 
@@ -23,6 +25,7 @@ class PaymentApplicationVerticle : AbstractVerticle() {
     private lateinit var db: Pool
 
     override fun start(startPromise: Promise<Void>) {
+        requireNativeEngines()
         db = Database.createPool(vertx)
         val repository = PostgresPaymentRepository(db)
         val paymentService = PaymentService(repository, VertxPaymentEventPublisher(vertx))
@@ -64,5 +67,10 @@ class PaymentApplicationVerticle : AbstractVerticle() {
             .listen(port)
             .map<Void> { null }
             .onSuccess { println("HTTP API listening on http://localhost:$port") }
+    }
+
+    private fun requireNativeEngines() {
+        NativePaymentValidator.isNativeAvailable()
+        NativePaymentRouter.isNativeAvailable()
     }
 }

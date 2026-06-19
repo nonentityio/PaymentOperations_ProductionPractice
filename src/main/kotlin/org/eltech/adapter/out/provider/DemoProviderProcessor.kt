@@ -46,7 +46,7 @@ class DemoProviderProcessor(
         repository.updateStatus(paymentId, PaymentStatus.CONFIRMED, null)
 
     private fun holdPaymentBeforeProvider(paymentId: UUID, providerId: String) {
-        vertx.setTimer(10_000) {
+        vertx.setTimer(30_000) {
             repository.fetchPayment(paymentId).onSuccess { payment ->
                 if (payment.status != PaymentStatus.CANCELLED) {
                     confirmPayment(paymentId).onSuccess {
