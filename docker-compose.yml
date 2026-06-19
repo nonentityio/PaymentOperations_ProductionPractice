@@ -1,0 +1,34 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: payment-operations-postgres
+    environment:
+      POSTGRES_DB: payment_ops
+      POSTGRES_USER: payment
+      POSTGRES_PASSWORD: payment
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "55432:5432"
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=100"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "effective_cache_size=768MB"
+      - "-c"
+      - "work_mem=16MB"
+      - "-c"
+      - "maintenance_work_mem=128MB"
+    volumes:
+      - payment_ops_pgdata:/var/lib/postgresql/data
+      - ./src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payment -d payment_ops"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  payment_ops_pgdata:

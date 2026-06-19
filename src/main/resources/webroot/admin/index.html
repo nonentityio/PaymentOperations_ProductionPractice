@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Payment Operations Monitor</title>
+    <link rel="stylesheet" href="/admin/styles.css">
+</head>
+<body>
+<main class="page">
+    <header class="header">
+        <div>
+            <p class="eyebrow">Payment Operations</p>
+            <h1>Мониторинг проведения платежей</h1>
+            <p id="health" class="health">Проверка API...</p>
+        </div>
+        <button id="refreshBtn" class="refresh-button" type="button" title="Обновить список">Обновить</button>
+    </header>
+
+    <section class="metrics" aria-label="Payment metrics">
+        <article class="metric">
+            <span>Всего</span>
+            <strong id="metricTotal">0</strong>
+        </article>
+        <article class="metric">
+            <span>Успешные</span>
+            <strong id="metricSucceeded">0</strong>
+        </article>
+        <article class="metric">
+            <span>В обработке</span>
+            <strong id="metricProcessing">0</strong>
+        </article>
+        <article class="metric">
+            <span>Ошибки</span>
+            <strong id="metricFailed">0</strong>
+        </article>
+    </section>
+
+    <section class="content">
+        <section class="panel payments-panel">
+            <div class="panel-head">
+                <div>
+                    <h2>Платежные операции</h2>
+                    <p>Последние 50 операций из платежного контура</p>
+                </div>
+                <label class="filter">
+                    <span>clientId</span>
+                    <input id="clientFilter" placeholder="Все клиенты" autocomplete="off">
+                </label>
+            </div>
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>Статус</th>
+                        <th>Платеж</th>
+                        <th>Клиент</th>
+                        <th>Сумма</th>
+                        <th>Провайдер</th>
+                        <th>Создан</th>
+                    </tr>
+                    </thead>
+                    <tbody id="paymentsTable"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <aside class="panel details-panel">
+            <div class="panel-head">
+                <div>
+                    <h2>Ход операции</h2>
+                    <p id="selectedStatus">Выберите платеж</p>
+                </div>
+            </div>
+            <div id="detailBody" class="empty-state">
+                Здесь появятся реквизит, текущий статус и история переходов выбранного платежа.
+            </div>
+        </aside>
+    </section>
+</main>
+
+<template id="paymentRowTemplate">
+    <tr>
+        <td><span class="status"></span></td>
+        <td><button class="link-button payment-id" type="button"></button></td>
+        <td class="client"></td>
+        <td class="amount"></td>
+        <td class="provider"></td>
+        <td class="created"></td>
+    </tr>
+</template>
+
+<script src="/admin/app.js"></script>
+</body>
+</html>
