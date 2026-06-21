@@ -148,7 +148,7 @@ build/install/PaymentOperations/bin/PaymentOperations
 
 On Linux, native files use `.so` instead of `.dylib`.
 
-If C/C++ modules are not found, the service uses JVM fallback.
+If C/C++ modules are not found, the service does not start. Validation and routing are native-only.
 
 ## API Examples
 
@@ -166,11 +166,11 @@ curl -X POST http://localhost:8080/payments \
   -H "Idempotency-Key: demo-1" \
   -H "Content-Type: application/json" \
   -d '{
-    "clientId": "client-a",
+    "clientId": "person-aidar",
     "providerId": "demo-provider",
     "amount": "150.00",
     "currency": "KGS",
-    "requisite": "BANKB-300-400"
+    "requisite": "CITY-996700333444"
   }'
 ```
 
@@ -199,9 +199,10 @@ curl -X POST http://localhost:8080/payments/{paymentId}/cancel \
 
 | Requisite | Result |
 |---|---|
-| `BANKB-300-400` | Successful payment |
-| `BAD-300-400` | Invalid requisite, final status `FAILED` |
-| `TIMEOUT-300-400` | Provider timeout with retries, final status `FAILED` |
+| `CITY-996700333444` | Successful payment |
+| `BAD-996700333444` | Invalid requisite, final status `FAILED` |
+| `TIMEOUT-996700333444` | Provider timeout with retries, final status `FAILED` |
+| `HOLD-996700000606` | Delayed payment that can be cancelled before final status |
 
 ## What Works
 
@@ -216,18 +217,18 @@ curl -X POST http://localhost:8080/payments/{paymentId}/cancel \
 | Idempotency key |          Done | Same request key returns same payment |
 | Payment validation |          Done | Invalid amount or empty fields return error |
 | Provider processing |          Done | Payment status changes after creation |
-| Successful payment |          Done | Use requisite `BANKB-300-400` |
-| Invalid requisite |          Done | Use requisite `BAD-300-400` |
-| Provider timeout retry |          Done | Use requisite `TIMEOUT-300-400` |
+| Successful payment |          Done | Use requisite `CITY-996700333444` |
+| Invalid requisite |          Done | Use requisite `BAD-996700333444` |
+| Provider timeout retry |          Done | Use requisite `TIMEOUT-996700333444` |
 | Status history |          Done | Open payment details in admin panel |
 | Provider response saving |          Done | Saved in `provider_responses` |
 | Audit log |          Done | Saved by database triggers |
 | Payment cancellation |          Done | Call `POST /payments/{paymentId}/cancel` |
 | Docker database |          Done | Run `docker compose up -d postgres` |
-| C validation module |          Done | `/health` shows `native-c` when native path is set |
-| C++ routing module |          Done | `/health` shows `native-cpp` when native path is set |
-| JVM fallback |          Done | Run without native paths, service still works |
-| Heroku deployment | Not Ready yet | Project has `Procfile`, `Aptfile`, `stage`, `nativeStage` |
+| C validation module |          Done | `/health` shows `native-c` |
+| C++ routing module |          Done | `/health` shows `native-cpp` |
+| Native-only execution |          Done | Service fails fast without native modules |
+| Heroku deployment |          Done | Deployed with native C/C++ build |
 
 ## Что Работает
 
@@ -242,9 +243,9 @@ curl -X POST http://localhost:8080/payments/{paymentId}/cancel \
 | Idempotency key |                                     Готово | Повторный ключ возвращает тот же платеж |
 | Валидация платежа |                                     Готово | Некорректные данные возвращают ошибку |
 | Обработка провайдером |                                     Готово | Статус платежа меняется после создания |
-| Успешный платеж |                                     Готово | Использовать `BANKB-300-400` |
-| Неверный реквизит |                                     Готово | Использовать `BAD-300-400` |
-| Retry при timeout |                                     Готово | Использовать `TIMEOUT-300-400` |
+| Успешный платеж |                                     Готово | Использовать `CITY-996700333444` |
+| Неверный реквизит |                                     Готово | Использовать `BAD-996700333444` |
+| Retry при timeout |                                     Готово | Использовать `TIMEOUT-996700333444` |
 | История статусов |                                     Готово | Открыть детали платежа в админке |
 | Ответ провайдера |                                     Готово | Сохраняется в `provider_responses` |
 | Audit log |                                     Готово | Сохраняется триггерами БД |
@@ -252,8 +253,8 @@ curl -X POST http://localhost:8080/payments/{paymentId}/cancel \
 | Docker database |                                     Готово | `docker compose up -d postgres` |
 | C validation module |                                     Готово | `/health` показывает `native-c` |
 | C++ routing module |                                     Готово | `/health` показывает `native-cpp` |
-| JVM fallback |                                     Готово | Работает без native paths |
-| Heroku deployment | Пока не готово к настройке, но тестируется | Есть `Procfile`, `Aptfile`, `stage`, `nativeStage` |
+| Native-only execution |                                     Готово | Без native modules сервис не стартует |
+| Heroku deployment |                                     Готово | Развернут с native C/C++ build |
 
 
 ## Not Production Ready Yet
