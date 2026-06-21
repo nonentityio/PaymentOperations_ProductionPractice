@@ -162,7 +162,7 @@ curl http://localhost:8080/health
 
 ```bash
 curl -X POST http://localhost:8080/payments \
-  -H "Authorization: Bearer demo-token" \
+  -H "Authorization: Bearer $PAYMENT_API_TOKEN" \
   -H "Idempotency-Key: demo-1" \
   -H "Content-Type: application/json" \
   -d '{
@@ -178,21 +178,21 @@ curl -X POST http://localhost:8080/payments \
 
 ```bash
 curl http://localhost:8080/payments \
-  -H "Authorization: Bearer demo-token"
+  -H "Authorization: Bearer $PAYMENT_API_TOKEN"
 ```
 
 ### Get Payment
 
 ```bash
 curl http://localhost:8080/payments/{paymentId} \
-  -H "Authorization: Bearer demo-token"
+  -H "Authorization: Bearer $PAYMENT_API_TOKEN"
 ```
 
 ### Cancel Payment
 
 ```bash
 curl -X POST http://localhost:8080/payments/{paymentId}/cancel \
-  -H "Authorization: Bearer demo-token"
+  -H "Authorization: Bearer $PAYMENT_API_TOKEN"
 ```
 
 ## Demo Requisites
@@ -261,11 +261,11 @@ curl -X POST http://localhost:8080/payments/{paymentId}/cancel \
 
 | Item | Status | Why |
 |---|---:|---|
-| Real JWT auth | Not done | Uses `Bearer demo-token` |
+| Shared service token | Done | Token is read from `PAYMENT_API_TOKEN` |
 | Real provider API | Not done | Uses demo provider processor |
 | Account balances | Not done | No real balance table |
 | Ledger entries | Not done | No accounting ledger |
-| Secure secrets | Not done | Demo configuration |
+| Secure secrets | Partial | Secrets are stored in environment variables |
 | Automated tests | Not done | No full test suite |
 | Real reports | Partial | Admin panel shows data, but no export |
 
@@ -273,11 +273,11 @@ curl -X POST http://localhost:8080/payments/{paymentId}/cancel \
 
 | Часть | Статус | Причина |
 |---|---:|---|
-| Настоящий JWT | Не готово | Используется `Bearer demo-token` |
+| Service token | Готово | Token берется из `PAYMENT_API_TOKEN` |
 | Реальный API провайдера | Не готово | Используется demo processor |
 | Балансы счетов | Не готово | Нет таблицы балансов |
 | Бухгалтерские проводки | Не готово | Нет полноценного ledger |
-| Хранение секретов | Не готово | Demo configuration |
+| Хранение секретов | Частично | Секреты хранятся в переменных окружения |
 | Автоматические тесты | Не готово | Нет полного набора тестов |
 | Отчеты | Частично | Есть просмотр в админке, но нет export |
 

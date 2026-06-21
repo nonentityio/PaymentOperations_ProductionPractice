@@ -57,7 +57,7 @@ class PaymentApplicationVerticle : AbstractVerticle() {
                 .setCachingEnabled(false)
         )
 
-        val authHandler = AuthHandler()
+        val authHandler = AuthHandler(apiToken())
         HealthRoutes(db).mount(router)
         PaymentRoutes(paymentService, paymentService, paymentService, paymentService, authHandler).mount(router)
 
@@ -72,5 +72,11 @@ class PaymentApplicationVerticle : AbstractVerticle() {
     private fun requireNativeEngines() {
         NativePaymentValidator.isNativeAvailable()
         NativePaymentRouter.isNativeAvailable()
+    }
+
+    private fun apiToken(): String {
+        return System.getenv("PAYMENT_API_TOKEN")
+            ?: System.getenv("PAYMENT_SERVICE_TOKEN")
+            ?: "local-dev-payment-token"
     }
 }

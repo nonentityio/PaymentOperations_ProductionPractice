@@ -1,9 +1,8 @@
-const DEMO_TOKEN = "demo-token";
-
 const state = {
     payments: [],
     selectedPaymentId: null,
-    refreshTimer: null
+    refreshTimer: null,
+    token: localStorage.getItem("paymentOpsToken") || ""
 };
 
 const els = {
@@ -21,17 +20,33 @@ const els = {
 };
 
 async function api(path) {
+    if (!state.token) {
+        askToken();
+    }
     const response = await fetch(path, {
         method: "GET",
         headers: {
-            Authorization: `Bearer ${DEMO_TOKEN}`
+            Authorization: `Bearer ${state.token}`
         }
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
+        if (response.status === 401) {
+            localStorage.removeItem("paymentOpsToken");
+            state.token = "";
+        }
         throw new Error(payload.error || `HTTP ${response.status}`);
     }
     return payload;
+}
+
+function askToken() {
+    const token = window.prompt("Введите PaymentOperations API token");
+    if (!token) {
+        throw new Error("API token не указан");
+    }
+    state.token = token.trim();
+    localStorage.setItem("paymentOpsToken", state.token);
 }
 
 function formatDate(value) {
