@@ -52,7 +52,7 @@ end $$;
 create table if not exists clients (
     client_id varchar(80) primary key,
     client_name varchar(160) not null,
-    client_type varchar(40) not null default 'INDIVIDUAL',
+    client_type varchar(40) not null default 'BANK',
     status party_status not null default 'ACTIVE',
     created_at timestamptz not null default now()
 );
@@ -65,9 +65,54 @@ create table if not exists providers (
     created_at timestamptz not null default now()
 );
 
+insert into clients (client_id, client_name, client_type, status)
+values
+    ('eldik-test-bank', 'Eldik Test Bank', 'BANK', 'ACTIVE'),
+    ('eldik2-test-bank', 'Eldik2 Test Bank', 'BANK', 'ACTIVE'),
+    ('merchant-network', 'Merchant Network', 'PAYMENT_SERVICE', 'ACTIVE'),
+    ('demo-hold', 'Demo Hold Service', 'PAYMENT_SERVICE', 'ACTIVE')
+on conflict (client_id) do update
+set client_name = excluded.client_name,
+    client_type = excluded.client_type,
+    status = excluded.status;
+
 insert into providers (provider_id, provider_name, api_url, status)
-values ('demo-provider', 'Demo Payment Provider', 'http://demo-provider.local/payments', 'ACTIVE')
-on conflict (provider_id) do nothing;
+values
+    ('demo-provider', 'Demo Payment Provider', 'http://demo-provider.local/payments', 'ACTIVE'),
+    ('eldik-test-bank', 'Eldik Test Bank Processing', 'http://eldik-test-bank.local/payments', 'ACTIVE'),
+    ('eldik2-test-bank', 'Eldik2 Test Bank Processing', 'http://eldik2-test-bank.local/payments', 'ACTIVE'),
+    ('merchant-network', 'Merchant Network Processing', 'http://merchant-network.local/payments', 'ACTIVE'),
+    ('demo-hold', 'Demo Hold Processing', 'http://demo-hold.local/payments', 'ACTIVE')
+on conflict (provider_id) do update
+set provider_name = excluded.provider_name,
+    api_url = excluded.api_url,
+    status = excluded.status;
+
+create or replace function payment_party_name(p_party_id varchar)
+returns varchar
+language sql
+immutable
+as $$
+    select case p_party_id
+        when 'eldik-test-bank' then 'Eldik Test Bank'
+        when 'eldik2-test-bank' then 'Eldik2 Test Bank'
+        when 'merchant-network' then 'Merchant Network'
+        when 'demo-hold' then 'Demo Hold Service'
+        when 'demo-provider' then 'Demo Payment Provider'
+        else initcap(replace(p_party_id, '-', ' '))
+    end
+$$;
+
+create or replace function payment_client_type(p_client_id varchar)
+returns varchar
+language sql
+immutable
+as $$
+    select case
+        when p_client_id in ('merchant-network', 'demo-hold', 'demo-provider') then 'PAYMENT_SERVICE'
+        else 'BANK'
+    end
+$$;
 
 create table if not exists payments (
     payment_id uuid primary key default gen_random_uuid(),
@@ -121,13 +166,13 @@ begin
     end if;
 end $$;
 
-insert into clients (client_id, client_name)
-select distinct p.client_id, concat('Client ', p.client_id)
+insert into clients (client_id, client_name, client_type)
+select distinct p.client_id, payment_party_name(p.client_id), payment_client_type(p.client_id)
 from payments p
 where not exists (select 1 from clients c where c.client_id = p.client_id);
 
 insert into providers (provider_id, provider_name, api_url)
-select distinct p.provider_id, concat('Provider ', p.provider_id), 'http://provider.local/payments'
+select distinct p.provider_id, payment_party_name(p.provider_id), 'http://provider.local/payments'
 from payments p
 where not exists (select 1 from providers pr where pr.provider_id = p.provider_id);
 
@@ -293,11 +338,11 @@ language plpgsql
 as $$
 begin
     insert into clients (client_id, client_name, client_type, status)
-    values (new.client_id, concat('Client ', new.client_id), 'INDIVIDUAL', 'ACTIVE')
+    values (new.client_id, payment_party_name(new.client_id), payment_client_type(new.client_id), 'ACTIVE')
     on conflict (client_id) do nothing;
 
     insert into providers (provider_id, provider_name, api_url, status)
-    values (new.provider_id, concat('Provider ', new.provider_id), 'http://provider.local/payments', 'ACTIVE')
+    values (new.provider_id, payment_party_name(new.provider_id), 'http://provider.local/payments', 'ACTIVE')
     on conflict (provider_id) do nothing;
 
     return new;

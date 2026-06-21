@@ -166,11 +166,11 @@ curl -X POST http://localhost:8080/payments \
   -H "Idempotency-Key: demo-1" \
   -H "Content-Type: application/json" \
   -d '{
-    "clientId": "person-aidar",
+    "clientId": "eldik-test-bank",
     "providerId": "demo-provider",
     "amount": "150.00",
     "currency": "KGS",
-    "requisite": "CITY-996700333444"
+    "requisite": "ELDIK-996700333444"
   }'
 ```
 
@@ -199,7 +199,7 @@ curl -X POST http://localhost:8080/payments/{paymentId}/cancel \
 
 | Requisite | Result |
 |---|---|
-| `CITY-996700333444` | Successful payment |
+| `ELDIK-996700333444` | Successful payment |
 | `BAD-996700333444` | Invalid requisite, final status `FAILED` |
 | `TIMEOUT-996700333444` | Provider timeout with retries, final status `FAILED` |
 | `HOLD-996700000606` | Delayed payment that can be cancelled before final status |
@@ -217,7 +217,7 @@ curl -X POST http://localhost:8080/payments/{paymentId}/cancel \
 | Idempotency key |          Done | Same request key returns same payment |
 | Payment validation |          Done | Invalid amount or empty fields return error |
 | Provider processing |          Done | Payment status changes after creation |
-| Successful payment |          Done | Use requisite `CITY-996700333444` |
+| Successful payment |          Done | Use requisite `ELDIK-996700333444` |
 | Invalid requisite |          Done | Use requisite `BAD-996700333444` |
 | Provider timeout retry |          Done | Use requisite `TIMEOUT-996700333444` |
 | Status history |          Done | Open payment details in admin panel |
@@ -243,7 +243,7 @@ curl -X POST http://localhost:8080/payments/{paymentId}/cancel \
 | Idempotency key |                                     Готово | Повторный ключ возвращает тот же платеж |
 | Валидация платежа |                                     Готово | Некорректные данные возвращают ошибку |
 | Обработка провайдером |                                     Готово | Статус платежа меняется после создания |
-| Успешный платеж |                                     Готово | Использовать `CITY-996700333444` |
+| Успешный платеж |                                     Готово | Использовать `ELDIK-996700333444` |
 | Неверный реквизит |                                     Готово | Использовать `BAD-996700333444` |
 | Retry при timeout |                                     Готово | Использовать `TIMEOUT-996700333444` |
 | История статусов |                                     Готово | Открыть детали платежа в админке |
