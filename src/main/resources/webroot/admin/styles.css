@@ -218,6 +218,34 @@ tbody tr.selected {
     background: var(--warning);
 }
 
+.category {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: #e9edff;
+    color: #3047c7;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.category.MOBILE_TOPUP {
+    background: #e7f7f4;
+    color: #047768;
+}
+
+.category.UTILITY {
+    background: #fff4e5;
+    color: #a15c00;
+}
+
+.category.CARD_PAYMENT,
+.category.WALLET {
+    background: #edf6fb;
+    color: #21627e;
+}
+
 .link-button {
     border: 0;
     background: transparent;

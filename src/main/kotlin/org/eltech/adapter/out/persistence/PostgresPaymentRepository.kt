@@ -17,13 +17,14 @@ class PostgresPaymentRepository(private val db: Pool) : PaymentRepositoryPort {
     override fun createPayment(command: CreatePaymentCommand): Future<CreatePaymentResult> {
         return db.preparedQuery(
             """
-            select payment_id, client_id, provider_id, amount, currency, status, idempotent_replay
-            from create_payment_request($1, $2, $3, $4::currency_code, $5, $6, $7)
+            select payment_id, client_id, provider_id, service_category, amount, currency, status, idempotent_replay
+            from create_payment_request($1, $2, $3::service_category, $4, $5::currency_code, $6, $7, $8)
             """.trimIndent()
         ).execute(
             Tuple.of(
                 command.clientId,
                 command.providerId,
+                command.serviceCategory,
                 command.amount,
                 command.currency,
                 command.requisite,
@@ -36,6 +37,7 @@ class PostgresPaymentRepository(private val db: Pool) : PaymentRepositoryPort {
                 paymentId = row.getUUID("payment_id"),
                 clientId = row.getString("client_id"),
                 providerId = row.getString("provider_id"),
+                serviceCategory = row.getString("service_category"),
                 amount = row.getBigDecimal("amount"),
                 currency = row.getString("currency"),
                 status = PaymentStatus.valueOf(row.getString("status")),
@@ -86,7 +88,7 @@ class PostgresPaymentRepository(private val db: Pool) : PaymentRepositoryPort {
     override fun fetchPayment(paymentId: UUID): Future<Payment> {
         return db.preparedQuery(
             """
-            select payment_id, client_id, provider_id, amount, currency, requisite, status, failure_reason, created_at, updated_at
+            select payment_id, client_id, provider_id, service_category, amount, currency, requisite, status, failure_reason, created_at, updated_at
             from get_payment($1)
             """.trimIndent()
         ).execute(Tuple.of(paymentId)).compose { rows ->
@@ -116,7 +118,7 @@ class PostgresPaymentRepository(private val db: Pool) : PaymentRepositoryPort {
     override fun listPayments(clientId: String?): Future<List<Payment>> {
         return db.preparedQuery(
             """
-            select payment_id, client_id, provider_id, amount, currency, requisite, status, failure_reason, created_at, updated_at
+            select payment_id, client_id, provider_id, service_category, amount, currency, requisite, status, failure_reason, created_at, updated_at
             from list_payments($1, $2)
             """.trimIndent()
         ).execute(Tuple.of(clientId, 50)).map { rows -> rows.map(::paymentFromRow) }
@@ -127,6 +129,7 @@ class PostgresPaymentRepository(private val db: Pool) : PaymentRepositoryPort {
             paymentId = row.getUUID("payment_id"),
             clientId = row.getString("client_id"),
             providerId = row.getString("provider_id"),
+            serviceCategory = row.getString("service_category"),
             amount = row.getBigDecimal("amount"),
             currency = row.getString("currency"),
             requisite = row.getString("requisite"),

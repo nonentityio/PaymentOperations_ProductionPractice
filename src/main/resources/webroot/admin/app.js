@@ -104,7 +104,7 @@ function renderTable() {
     if (state.payments.length === 0) {
         const row = document.createElement("tr");
         const cell = document.createElement("td");
-        cell.colSpan = 6;
+        cell.colSpan = 7;
         cell.textContent = "Платежи не найдены";
         row.appendChild(cell);
         els.paymentsTable.appendChild(row);
@@ -119,6 +119,8 @@ function renderTable() {
         row.querySelector(".payment-id").textContent = shortId(payment.paymentId);
         row.querySelector(".payment-id").title = payment.paymentId;
         row.querySelector(".client").textContent = payment.clientId;
+        row.querySelector(".category").textContent = payment.serviceCategory || "TRANSFER";
+        row.querySelector(".category").classList.add(payment.serviceCategory || "TRANSFER");
         row.querySelector(".amount").textContent = money(payment);
         row.querySelector(".provider").textContent = payment.providerId;
         row.querySelector(".created").textContent = formatDate(payment.createdAt);
@@ -160,6 +162,7 @@ function renderDetails(payment) {
     addKv(dl, "payment_id", payment.paymentId);
     addKv(dl, "client_id", payment.clientId);
     addKv(dl, "provider_id", payment.providerId);
+    addKv(dl, "service_category", payment.serviceCategory || "TRANSFER");
     addKv(dl, "amount", money(payment));
     addKv(dl, "requisite", payment.requisite);
     addKv(dl, "created_at", formatDate(payment.createdAt));

@@ -21,7 +21,9 @@ string java_string_to_cpp(JNIEnv *env, jstring value) {
 
 string detect_provider(const string &requisite, const string &requested_provider) {
     (void) requisite;
-    (void) requested_provider;
+    if (!requested_provider.empty()) {
+        return requested_provider;
+    }
     return "demo-provider";
 }
 

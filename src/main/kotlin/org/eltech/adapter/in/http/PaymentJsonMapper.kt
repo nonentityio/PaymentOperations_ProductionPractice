@@ -14,6 +14,7 @@ fun createPaymentResultToJson(result: CreatePaymentResult): JsonObject {
 
     result.clientId?.let { json.put("clientId", it) }
     result.providerId?.let { json.put("providerId", it) }
+    result.serviceCategory?.let { json.put("serviceCategory", it) }
     result.amount?.let { json.put("amount", it.toPlainString()) }
     result.currency?.let { json.put("currency", it) }
 
@@ -25,6 +26,7 @@ fun paymentToJson(payment: Payment): JsonObject {
         .put("paymentId", payment.paymentId.toString())
         .put("clientId", payment.clientId)
         .put("providerId", payment.providerId)
+        .put("serviceCategory", payment.serviceCategory)
         .put("amount", payment.amount.toPlainString())
         .put("currency", payment.currency)
         .put("requisite", payment.requisite)
@@ -46,4 +48,3 @@ fun paymentDetailsToJson(details: PaymentDetails): JsonObject {
             })
         )
 }
-

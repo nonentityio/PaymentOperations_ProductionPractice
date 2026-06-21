@@ -24,6 +24,17 @@ public final class PaymentRequestFingerprint {
         String requisite,
         String providerId
     ) {
+        return hash(clientId, amount, currency, requisite, providerId, "TRANSFER");
+    }
+
+    public static String hash(
+        String clientId,
+        String amount,
+        String currency,
+        String requisite,
+        String providerId,
+        String serviceCategory
+    ) {
         MessageDigest digest = SHA_256.get();
         digest.reset();
         digest.update(clientId.getBytes(StandardCharsets.UTF_8));
@@ -35,6 +46,8 @@ public final class PaymentRequestFingerprint {
         digest.update(requisite.getBytes(StandardCharsets.UTF_8));
         digest.update((byte) '|');
         digest.update(providerId.getBytes(StandardCharsets.UTF_8));
+        digest.update((byte) '|');
+        digest.update(serviceCategory.getBytes(StandardCharsets.UTF_8));
         return toHex(digest.digest());
     }
 
@@ -48,4 +61,3 @@ public final class PaymentRequestFingerprint {
         return new String(result);
     }
 }
-

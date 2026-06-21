@@ -11,6 +11,7 @@ import java.math.RoundingMode
 data class CreatePaymentHttpRequest(
     val clientId: String,
     val providerId: String,
+    val serviceCategory: String,
     val amount: BigDecimal,
     val currency: String,
     val requisite: String,
@@ -24,11 +25,12 @@ data class CreatePaymentHttpRequest(
         return CreatePaymentCommand(
             clientId = clientId,
             providerId = effectiveProviderId,
+            serviceCategory = serviceCategory,
             amount = amount,
             currency = currency,
             requisite = requisite,
             idempotencyKey = idempotencyKey,
-            requestHash = PaymentRequestFingerprint.hash(clientId, amountText, currency, requisite, effectiveProviderId)
+            requestHash = PaymentRequestFingerprint.hash(clientId, amountText, currency, requisite, effectiveProviderId, serviceCategory)
         )
     }
 
@@ -38,6 +40,7 @@ data class CreatePaymentHttpRequest(
             val clientId = body.getString("clientId")?.trim().orEmpty()
             val currency = body.getString("currency")?.uppercase()?.trim().orEmpty()
             val requisite = body.getString("requisite")?.trim().orEmpty()
+            val serviceCategory = body.getString("serviceCategory")?.trim()?.uppercase().orEmpty().ifBlank { "TRANSFER" }
             var providerId = body.getString("providerId")?.trim().orEmpty()
             if (providerId.isBlank()) {
                 providerId = "demo-provider"
@@ -51,12 +54,17 @@ data class CreatePaymentHttpRequest(
             if (currency.length != 3) {
                 throw IllegalArgumentException("currency must be ISO-4217 code, for example KGS or USD")
             }
+            if (serviceCategory !in SERVICE_CATEGORIES) {
+                throw IllegalArgumentException("serviceCategory must be one of ${SERVICE_CATEGORIES.joinToString()}")
+            }
             if (idempotencyKey.isBlank()) {
                 throw IllegalArgumentException("Idempotency-Key header is required")
             }
 
-            return CreatePaymentHttpRequest(clientId, providerId, amount, currency, requisite, idempotencyKey)
+            return CreatePaymentHttpRequest(clientId, providerId, serviceCategory, amount, currency, requisite, idempotencyKey)
         }
+
+        private val SERVICE_CATEGORIES = setOf("TRANSFER", "MOBILE_TOPUP", "UTILITY", "CARD_PAYMENT", "WALLET")
 
         private fun parseAmount(body: JsonObject): BigDecimal? {
             val raw = body.getValue("amount")

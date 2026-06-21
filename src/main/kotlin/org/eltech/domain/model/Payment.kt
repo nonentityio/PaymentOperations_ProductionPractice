@@ -8,6 +8,7 @@ data class Payment(
     val paymentId: UUID,
     val clientId: String,
     val providerId: String,
+    val serviceCategory: String,
     val amount: BigDecimal,
     val currency: String,
     val requisite: String,
@@ -16,4 +17,3 @@ data class Payment(
     val createdAt: OffsetDateTime,
     val updatedAt: OffsetDateTime
 )
-

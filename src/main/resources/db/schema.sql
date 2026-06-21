@@ -481,9 +481,13 @@ begin
 end;
 $$;
 
+drop function if exists create_payment_request(varchar, varchar, numeric, currency_code, varchar, varchar, varchar) cascade;
+drop function if exists create_payment_request(varchar, varchar, service_category, numeric, currency_code, varchar, varchar, varchar) cascade;
+
 create or replace function create_payment_request(
     p_client_id varchar,
     p_provider_id varchar,
+    p_service_category service_category,
     p_amount numeric,
     p_currency currency_code,
     p_requisite varchar,
@@ -494,6 +498,7 @@ returns table (
     payment_id uuid,
     client_id varchar,
     provider_id varchar,
+    service_category service_category,
     amount numeric,
     currency currency_code,
     status payment_status,
@@ -510,6 +515,7 @@ begin
         p.payment_id,
         p.client_id,
         p.provider_id,
+        p.service_category,
         p.amount,
         p.currency,
         p.status,
@@ -531,6 +537,7 @@ begin
             v_existing.payment_id,
             v_existing.client_id,
             v_existing.provider_id,
+            v_existing.service_category,
             v_existing.amount,
             v_existing.currency,
             v_existing.status,
@@ -543,7 +550,7 @@ begin
         p_client_id,
         p_provider_id,
         v_external_request_id,
-        'TRANSFER',
+        p_service_category,
         p_amount,
         p_currency,
         p_requisite
@@ -569,6 +576,7 @@ begin
         p.payment_id,
         p.client_id,
         p.provider_id,
+        p.service_category,
         p.amount,
         p.currency,
         p.status,
@@ -598,11 +606,14 @@ begin
 end;
 $$;
 
+drop function if exists get_payment(uuid) cascade;
+
 create or replace function get_payment(p_payment_id uuid)
 returns table (
     payment_id uuid,
     client_id varchar,
     provider_id varchar,
+    service_category service_category,
     amount numeric,
     currency currency_code,
     requisite varchar,
@@ -618,6 +629,7 @@ as $$
         p.payment_id,
         p.client_id,
         p.provider_id,
+        p.service_category,
         p.amount,
         p.currency,
         p.requisite,
@@ -629,6 +641,8 @@ as $$
     where p.payment_id = p_payment_id;
 $$;
 
+drop function if exists list_payments(varchar, integer) cascade;
+
 create or replace function list_payments(
     p_client_id varchar default null,
     p_limit integer default 50
@@ -637,6 +651,7 @@ returns table (
     payment_id uuid,
     client_id varchar,
     provider_id varchar,
+    service_category service_category,
     amount numeric,
     currency currency_code,
     requisite varchar,
@@ -652,6 +667,7 @@ as $$
         p.payment_id,
         p.client_id,
         p.provider_id,
+        p.service_category,
         p.amount,
         p.currency,
         p.requisite,
@@ -699,6 +715,7 @@ $$;
 create or replace function create_payment_request_json(
     p_client_id varchar,
     p_provider_id varchar,
+    p_service_category service_category,
     p_amount numeric,
     p_currency currency_code,
     p_requisite varchar,
@@ -712,6 +729,7 @@ as $$
         'paymentId', r.payment_id,
         'clientId', r.client_id,
         'providerId', r.provider_id,
+        'serviceCategory', r.service_category,
         'amount', r.amount::text,
         'currency', r.currency,
         'status', r.status,
@@ -720,6 +738,7 @@ as $$
     from create_payment_request(
         p_client_id,
         p_provider_id,
+        p_service_category,
         p_amount,
         p_currency,
         p_requisite,
@@ -737,6 +756,7 @@ as $$
         'paymentId', p.payment_id,
         'clientId', p.client_id,
         'providerId', p.provider_id,
+        'serviceCategory', p.service_category,
         'amount', p.amount::text,
         'currency', p.currency,
         'requisite', p.requisite,
@@ -776,9 +796,10 @@ as $$
             jsonb_agg(
                 jsonb_build_object(
                     'paymentId', p.payment_id,
-                    'clientId', p.client_id,
-                    'providerId', p.provider_id,
-                    'amount', p.amount::text,
+        'clientId', p.client_id,
+        'providerId', p.provider_id,
+        'serviceCategory', p.service_category,
+        'amount', p.amount::text,
                     'currency', p.currency,
                     'requisite', p.requisite,
                     'status', p.status,
