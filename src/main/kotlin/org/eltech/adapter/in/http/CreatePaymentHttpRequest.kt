@@ -4,6 +4,7 @@ import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import org.eltech.application.dto.CreatePaymentCommand
 import org.eltech.infrastructure.routing.NativePaymentRouter
+import org.eltech.infrastructure.validation.ServiceRequisiteValidator
 import org.eltech.infrastructure.security.PaymentRequestFingerprint
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -12,6 +13,7 @@ data class CreatePaymentHttpRequest(
     val clientId: String,
     val providerId: String,
     val serviceCategory: String,
+    val serviceId: String,
     val amount: BigDecimal,
     val currency: String,
     val requisite: String,
@@ -26,11 +28,12 @@ data class CreatePaymentHttpRequest(
             clientId = clientId,
             providerId = effectiveProviderId,
             serviceCategory = serviceCategory,
+            serviceId = serviceId,
             amount = amount,
             currency = currency,
             requisite = requisite,
             idempotencyKey = idempotencyKey,
-            requestHash = PaymentRequestFingerprint.hash(clientId, amountText, currency, requisite, effectiveProviderId, serviceCategory)
+            requestHash = PaymentRequestFingerprint.hash(clientId, amountText, currency, requisite, effectiveProviderId, serviceCategory, serviceId)
         )
     }
 
@@ -41,6 +44,7 @@ data class CreatePaymentHttpRequest(
             val currency = body.getString("currency")?.uppercase()?.trim().orEmpty()
             val requisite = body.getString("requisite")?.trim().orEmpty()
             val serviceCategory = body.getString("serviceCategory")?.trim()?.uppercase().orEmpty().ifBlank { "TRANSFER" }
+            val serviceId = body.getString("serviceId")?.trim().orEmpty().ifBlank { ServiceRequisiteValidator.defaultServiceId(serviceCategory) }
             var providerId = body.getString("providerId")?.trim().orEmpty()
             if (providerId.isBlank()) {
                 providerId = "demo-provider"
@@ -61,7 +65,7 @@ data class CreatePaymentHttpRequest(
                 throw IllegalArgumentException("Idempotency-Key header is required")
             }
 
-            return CreatePaymentHttpRequest(clientId, providerId, serviceCategory, amount, currency, requisite, idempotencyKey)
+            return CreatePaymentHttpRequest(clientId, providerId, serviceCategory, serviceId, amount, currency, requisite, idempotencyKey)
         }
 
         private val SERVICE_CATEGORIES = setOf("TRANSFER", "MOBILE_TOPUP", "UTILITY", "CARD_PAYMENT", "WALLET")

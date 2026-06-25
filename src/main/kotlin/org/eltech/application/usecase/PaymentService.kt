@@ -14,6 +14,7 @@ import org.eltech.domain.model.Payment
 import org.eltech.domain.model.PaymentDetails
 import org.eltech.domain.model.PaymentStatus
 import org.eltech.infrastructure.validation.NativePaymentValidator
+import org.eltech.infrastructure.validation.ServiceRequisiteValidator
 import java.math.RoundingMode
 import java.util.UUID
 
@@ -26,6 +27,16 @@ class PaymentService(
             command.amount.movePointRight(2).setScale(0, RoundingMode.UNNECESSARY).longValueExact()
         } catch (error: ArithmeticException) {
             return Future.failedFuture(IllegalArgumentException("amount must have no more than two decimal places"))
+        }
+
+        val serviceValidation = ServiceRequisiteValidator.validate(
+            command.serviceCategory,
+            command.serviceId,
+            command.requisite,
+            command.amount
+        )
+        if (!serviceValidation.valid) {
+            return Future.failedFuture(IllegalArgumentException(serviceValidation.message))
         }
 
         val validation = NativePaymentValidator.validate(

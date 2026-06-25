@@ -15,6 +15,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.test.assertNotNull
 
 class PaymentServiceTest {
     @Test
@@ -56,6 +57,57 @@ class PaymentServiceTest {
         assertEquals("STARTED", repository.lastAttemptStatus)
     }
 
+    @Test
+    fun createPaymentRejectsWrongServiceRequisiteBeforeRepositoryCall() {
+        val repository = FakePaymentRepository(payment(UUID.randomUUID(), PaymentStatus.CREATED))
+        val service = PaymentService(repository, NoopPublisher)
+
+        val result = service.createPayment(
+            CreatePaymentCommand(
+                clientId = "merchant-network",
+                providerId = "merchant-network",
+                serviceCategory = "UTILITY",
+                serviceId = "utility.electricity",
+                amount = BigDecimal("250.00"),
+                currency = "KGS",
+                requisite = "WATER-12345678",
+                idempotencyKey = "idem-utility-bad",
+                requestHash = "hash"
+            )
+        )
+
+        assertTrue(result.failed())
+        assertFalse(repository.createWasCalled)
+    }
+
+    @Test
+    fun createPaymentAcceptsServiceSpecificRequisiteAndPublishesEvent() {
+        val repository = FakePaymentRepository(payment(UUID.randomUUID(), PaymentStatus.CREATED))
+        val publisher = RecordingPublisher()
+        val service = PaymentService(repository, publisher)
+
+        val result = service.createPayment(
+            CreatePaymentCommand(
+                clientId = "merchant-network",
+                providerId = "merchant-network",
+                serviceCategory = "UTILITY",
+                serviceId = "utility.electricity",
+                amount = BigDecimal("250.00"),
+                currency = "KGS",
+                requisite = "EL-12345678",
+                idempotencyKey = "idem-utility-good",
+                requestHash = "hash"
+            )
+        )
+
+        assertTrue(result.succeeded())
+        assertTrue(repository.createWasCalled)
+        assertNotNull(repository.createdCommand)
+        assertEquals("utility.electricity", repository.createdCommand?.serviceId)
+        assertEquals("UTILITY", repository.createdCommand?.serviceCategory)
+        assertEquals(1, publisher.published)
+    }
+
     private fun payment(id: UUID, status: PaymentStatus): Payment {
         val now = OffsetDateTime.now()
         return Payment(
@@ -78,15 +130,38 @@ private object NoopPublisher : PaymentEventPublisher {
     override fun publishPaymentCreated(result: CreatePaymentResult) = Unit
 }
 
+private class RecordingPublisher : PaymentEventPublisher {
+    var published = 0
+
+    override fun publishPaymentCreated(result: CreatePaymentResult) {
+        published++
+    }
+}
+
 private class FakePaymentRepository(private val payment: Payment) : PaymentRepositoryPort {
     var lastStatus: PaymentStatus? = null
     var lastFailureReason: String? = null
     var statusWasUpdated = false
     var lastAttemptProvider: String? = null
     var lastAttemptStatus: String? = null
+    var createWasCalled = false
+    var createdCommand: CreatePaymentCommand? = null
 
     override fun createPayment(command: CreatePaymentCommand): Future<CreatePaymentResult> {
-        return Future.failedFuture("not used")
+        createWasCalled = true
+        createdCommand = command
+        return Future.succeededFuture(
+            CreatePaymentResult(
+                paymentId = UUID.randomUUID(),
+                clientId = command.clientId,
+                providerId = command.providerId,
+                serviceCategory = command.serviceCategory,
+                amount = command.amount,
+                currency = command.currency,
+                status = PaymentStatus.CREATED,
+                idempotentReplay = false
+            )
+        )
     }
 
     override fun updateStatus(paymentId: UUID, newStatus: PaymentStatus, failureReason: String?): Future<Void> {

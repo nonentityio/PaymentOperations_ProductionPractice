@@ -43,6 +43,14 @@ class PaymentInfrastructureTest {
     }
 
     @Test
+    fun fingerprintChangesWhenServiceIdChanges() {
+        val electricity = PaymentRequestFingerprint.hash("bank", "1.00", "KGS", "EL-12345678", "provider", "UTILITY", "utility.electricity")
+        val water = PaymentRequestFingerprint.hash("bank", "1.00", "KGS", "EL-12345678", "provider", "UTILITY", "utility.water")
+
+        assertNotEquals(electricity, water)
+    }
+
+    @Test
     fun paymentIdParserReturnsNullForInvalidValues() {
         val id = UUID.randomUUID()
 

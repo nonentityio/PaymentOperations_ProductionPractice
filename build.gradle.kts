@@ -45,6 +45,7 @@ application {
 }
 
 tasks.test {
+    dependsOn("compileNativeValidation")
     useJUnitPlatform()
 }
 

@@ -4,11 +4,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public final class NativePaymentValidator {
-    private static final int OK = 0;
-    private static final int INVALID_REQUISITE = 1;
-    private static final int INVALID_PROVIDER = 2;
-    private static final int INVALID_CURRENCY = 3;
-    private static final int INVALID_AMOUNT = 4;
+    private static final short OK = 0;
+    private static final short INVALID_REQUISITE = 1;
+    private static final short INVALID_PROVIDER = 2;
+    private static final short INVALID_CURRENCY = 3;
+    private static final short INVALID_AMOUNT = 4;
 
     static {
         loadNativeLibrary();
@@ -22,6 +22,34 @@ public final class NativePaymentValidator {
         return new ValidationResult(code == OK, messageFor(code), "native-c");
     }
 
+    public static int countValidPackedBatch(
+        byte[] requisites,
+        int[] requisiteOffsets,
+        int[] requisiteLengths,
+        byte[] providers,
+        int[] providerOffsets,
+        int[] providerLengths,
+        byte[] currencies,
+        int[] currencyOffsets,
+        int[] currencyLengths,
+        long[] amountsMinor,
+        int iterations
+    ) {
+        return countValidPackedBatchNative(
+            requisites,
+            requisiteOffsets,
+            requisiteLengths,
+            providers,
+            providerOffsets,
+            providerLengths,
+            currencies,
+            currencyOffsets,
+            currencyLengths,
+            amountsMinor,
+            iterations
+        );
+    }
+
     public static boolean isNativeAvailable() {
         return true;
     }
@@ -31,6 +59,20 @@ public final class NativePaymentValidator {
         String providerId,
         String currency,
         long amountMinor
+    );
+
+    private static native int countValidPackedBatchNative(
+        byte[] requisites,
+        int[] requisiteOffsets,
+        int[] requisiteLengths,
+        byte[] providers,
+        int[] providerOffsets,
+        int[] providerLengths,
+        byte[] currencies,
+        int[] currencyOffsets,
+        int[] currencyLengths,
+        long[] amountsMinor,
+        int iterations
     );
 
     private static void loadNativeLibrary() {

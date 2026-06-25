@@ -6,6 +6,7 @@ data class CreatePaymentCommand(
     val clientId: String,
     val providerId: String,
     val serviceCategory: String,
+    val serviceId: String,
     val amount: BigDecimal,
     val currency: String,
     val requisite: String,
