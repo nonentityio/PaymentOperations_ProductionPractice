@@ -2,7 +2,7 @@ const state = {
     payments: [],
     selectedPaymentId: null,
     refreshTimer: null,
-    token: localStorage.getItem("paymentOpsToken") || ""
+    token: sessionStorage.getItem("paymentOpsToken") || ""
 };
 
 const els = {
@@ -32,7 +32,7 @@ async function api(path) {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
         if (response.status === 401) {
-            localStorage.removeItem("paymentOpsToken");
+            sessionStorage.removeItem("paymentOpsToken");
             state.token = "";
         }
         throw new Error(payload.error || `HTTP ${response.status}`);
@@ -46,7 +46,7 @@ function askToken() {
         throw new Error("API token не указан");
     }
     state.token = token.trim();
-    localStorage.setItem("paymentOpsToken", state.token);
+    sessionStorage.setItem("paymentOpsToken", state.token);
 }
 
 function formatDate(value) {

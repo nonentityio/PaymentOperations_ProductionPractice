@@ -45,6 +45,7 @@ class PaymentApplicationVerticle : AbstractVerticle() {
                 .putHeader("referrer-policy", "no-referrer")
                 .putHeader("x-frame-options", "DENY")
                 .putHeader("permissions-policy", "geolocation=(), camera=(), microphone=()")
+                .putHeader("cache-control", "no-store")
             ctx.next()
         }
         router.route().handler(BodyHandler.create().setBodyLimit(16 * 1024))
@@ -85,7 +86,7 @@ class PaymentApplicationVerticle : AbstractVerticle() {
     private fun apiToken(): String? {
         return System.getenv("PAYMENT_API_TOKEN")
             ?: System.getenv("PAYMENT_SERVICE_TOKEN")
-            ?: "local-dev-payment-token"
+            ?: throw IllegalStateException("PAYMENT_API_TOKEN or PAYMENT_SERVICE_TOKEN is required")
     }
 
     private fun apiTokenHash(): String? {
