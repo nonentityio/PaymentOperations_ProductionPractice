@@ -1,6 +1,7 @@
 package org.eltech.infrastructure
 
 import org.eltech.infrastructure.security.PaymentRequestFingerprint
+import org.eltech.infrastructure.security.SecureTokens
 import org.eltech.infrastructure.validation.PaymentIds
 import java.util.UUID
 import kotlin.test.Test
@@ -48,6 +49,16 @@ class PaymentInfrastructureTest {
         val water = PaymentRequestFingerprint.hash("bank", "1.00", "KGS", "EL-12345678", "provider", "UTILITY", "utility.water")
 
         assertNotEquals(electricity, water)
+    }
+
+
+    @Test
+    fun bearerTokenCanBeCheckedBySha256Hash() {
+        val hash = SecureTokens.sha256Hex("secret-token")
+
+        assertTrue(SecureTokens.bearerMatches("Bearer secret-token", null, hash))
+        assertTrue(SecureTokens.bearerMatches("bearer secret-token", null, hash))
+        assertEquals(false, SecureTokens.bearerMatches("Bearer wrong-token", null, hash))
     }
 
     @Test

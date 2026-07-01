@@ -39,7 +39,15 @@ class PaymentApplicationVerticle : AbstractVerticle() {
 
     private fun startHttpServer(paymentService: PaymentService): Future<Void> {
         val router = Router.router(vertx)
-        router.route().handler(BodyHandler.create())
+        router.route().handler { ctx ->
+            ctx.response()
+                .putHeader("x-content-type-options", "nosniff")
+                .putHeader("referrer-policy", "no-referrer")
+                .putHeader("x-frame-options", "DENY")
+                .putHeader("permissions-policy", "geolocation=(), camera=(), microphone=()")
+            ctx.next()
+        }
+        router.route().handler(BodyHandler.create().setBodyLimit(16 * 1024))
 
         router.get("/").handler { ctx -> ctx.redirect("/admin/") }
         router.route("/admin/*").handler { ctx ->
@@ -57,7 +65,7 @@ class PaymentApplicationVerticle : AbstractVerticle() {
                 .setCachingEnabled(false)
         )
 
-        val authHandler = AuthHandler(apiToken())
+        val authHandler = AuthHandler(apiToken(), apiTokenHash())
         HealthRoutes(db).mount(router)
         PaymentRoutes(paymentService, paymentService, paymentService, paymentService, authHandler).mount(router)
 
@@ -74,9 +82,14 @@ class PaymentApplicationVerticle : AbstractVerticle() {
         NativePaymentRouter.isNativeAvailable()
     }
 
-    private fun apiToken(): String {
+    private fun apiToken(): String? {
         return System.getenv("PAYMENT_API_TOKEN")
             ?: System.getenv("PAYMENT_SERVICE_TOKEN")
             ?: "local-dev-payment-token"
+    }
+
+    private fun apiTokenHash(): String? {
+        return System.getenv("PAYMENT_API_TOKEN_SHA256")
+            ?: System.getenv("PAYMENT_SERVICE_TOKEN_SHA256")
     }
 }
