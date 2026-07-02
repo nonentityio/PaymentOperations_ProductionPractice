@@ -47,6 +47,10 @@ begin
     if not exists (select 1 from pg_type where typname = 'requisite_status') then
         create type requisite_status as enum ('ACTIVE', 'INVALID', 'ARCHIVED');
     end if;
+
+    if not exists (select 1 from pg_type where typname = 'outbox_status') then
+        create type outbox_status as enum ('PENDING', 'PROCESSING', 'DONE', 'FAILED');
+    end if;
 end $$;
 
 create table if not exists clients (
@@ -78,7 +82,6 @@ set client_name = excluded.client_name,
 
 insert into providers (provider_id, provider_name, api_url, status)
 values
-    ('demo-provider', 'Demo Payment Provider', 'http://demo-provider.local/payments', 'ACTIVE'),
     ('eldik-test-bank', 'Eldik Test Bank Processing', 'http://eldik-test-bank.local/payments', 'ACTIVE'),
     ('eldik2-test-bank', 'Eldik2 Test Bank Processing', 'http://eldik2-test-bank.local/payments', 'ACTIVE'),
     ('merchant-network', 'Merchant Network Processing', 'http://merchant-network.local/payments', 'ACTIVE'),
@@ -98,7 +101,6 @@ as $$
         when 'eldik2-test-bank' then 'Eldik2 Test Bank'
         when 'merchant-network' then 'Merchant Network'
         when 'demo-hold' then 'Demo Hold Service'
-        when 'demo-provider' then 'Demo Payment Provider'
         else initcap(replace(p_party_id, '-', ' '))
     end
 $$;
@@ -109,7 +111,7 @@ language sql
 immutable
 as $$
     select case
-        when p_client_id in ('merchant-network', 'demo-hold', 'demo-provider') then 'PAYMENT_SERVICE'
+        when p_client_id in ('merchant-network', 'demo-hold') then 'PAYMENT_SERVICE'
         else 'BANK'
     end
 $$;
@@ -117,7 +119,7 @@ $$;
 create table if not exists payments (
     payment_id uuid primary key default gen_random_uuid(),
     client_id varchar(80) not null,
-    provider_id varchar(80) not null default 'demo-provider',
+    provider_id varchar(80) not null default 'merchant-network',
     external_request_id varchar(120) not null,
     service_category service_category not null default 'TRANSFER',
     amount numeric(18, 2) not null check (amount > 0),
@@ -317,6 +319,20 @@ create table if not exists payment_requisites (
     created_at timestamptz not null default now()
 );
 
+create table if not exists payment_outbox (
+    outbox_id uuid primary key default gen_random_uuid(),
+    payment_id uuid not null references payments(payment_id) on delete cascade,
+    provider_id varchar(80) not null references providers(provider_id),
+    event_type varchar(80) not null,
+    status outbox_status not null default 'PENDING',
+    attempts integer not null default 0,
+    available_at timestamptz not null default now(),
+    locked_at timestamptz,
+    created_at timestamptz not null default now(),
+    processed_at timestamptz,
+    unique (payment_id, event_type)
+);
+
 alter table payments alter column payment_id set default gen_random_uuid();
 alter table idempotency_keys alter column key_id set default gen_random_uuid();
 alter table payment_attempts alter column attempt_id set default gen_random_uuid();
@@ -324,6 +340,7 @@ alter table provider_responses alter column response_id set default gen_random_u
 alter table payment_status_history alter column history_id set default gen_random_uuid();
 alter table audit_log alter column audit_id set default gen_random_uuid();
 alter table payment_requisites alter column requisite_id set default gen_random_uuid();
+alter table payment_outbox alter column outbox_id set default gen_random_uuid();
 
 insert into payment_requisites (payment_id, account_number, receiver_name, status)
 select p.payment_id, p.requisite, concat('Receiver ', right(p.requisite, least(length(p.requisite), 4))), 'ACTIVE'
@@ -434,6 +451,19 @@ begin
         'SUCCESS',
         jsonb_build_object('accountNumber', new.requisite)
     );
+
+    return new;
+end;
+$$;
+
+create or replace function enqueue_payment_created()
+returns trigger
+language plpgsql
+as $$
+begin
+    insert into payment_outbox (payment_id, provider_id, event_type)
+    values (new.payment_id, new.provider_id, 'PAYMENT_CREATED')
+    on conflict (payment_id, event_type) do nothing;
 
     return new;
 end;
@@ -726,6 +756,70 @@ as $$
     limit greatest(1, least(coalesce(p_limit, 50), 100));
 $$;
 
+create or replace function claim_payment_outbox_batch(p_limit integer default 64)
+returns table (
+    outbox_id uuid,
+    payment_id uuid,
+    provider_id varchar,
+    event_type varchar
+)
+language sql
+as $$
+    with selected as (
+        select o.outbox_id
+        from payment_outbox o
+        join payments p on p.payment_id = o.payment_id
+        where o.status = 'PENDING'
+          and o.available_at <= now()
+          and p.status = 'CREATED'
+        order by o.created_at asc
+        limit greatest(1, least(coalesce(p_limit, 64), 1000))
+        for update skip locked
+    ),
+    claimed as (
+        update payment_outbox o
+        set status = 'PROCESSING',
+            attempts = o.attempts + 1,
+            locked_at = now()
+        from selected s
+        where o.outbox_id = s.outbox_id
+        returning o.outbox_id, o.payment_id, o.provider_id, o.event_type
+    )
+    select c.outbox_id, c.payment_id, c.provider_id, c.event_type
+    from claimed c;
+$$;
+
+create or replace function mark_payment_outbox_done(p_outbox_id uuid)
+returns void
+language plpgsql
+as $$
+begin
+    update payment_outbox
+    set status = 'DONE',
+        processed_at = now()
+    where outbox_id = p_outbox_id;
+end;
+$$;
+
+create or replace function release_stale_payment_outbox(p_after_seconds integer default 30)
+returns integer
+language plpgsql
+as $$
+declare
+    v_count integer;
+begin
+    update payment_outbox
+    set status = 'PENDING',
+        available_at = now() + interval '1 second',
+        locked_at = null
+    where status = 'PROCESSING'
+      and locked_at < now() - make_interval(secs => greatest(1, coalesce(p_after_seconds, 30)));
+
+    get diagnostics v_count = row_count;
+    return v_count;
+end;
+$$;
+
 create or replace function get_payment_history(p_payment_id uuid)
 returns table (
     old_status payment_status,
@@ -860,6 +954,58 @@ as $$
     from list_payments(p_client_id, p_limit) p;
 $$;
 
+create or replace function payment_operation_metrics()
+returns jsonb
+language sql
+stable
+as $$
+    select jsonb_build_object(
+        'paymentsByStatus',
+        coalesce(
+            (
+                select jsonb_object_agg(status, total)
+                from (
+                    select p.status::text as status, count(*) as total
+                    from payments p
+                    group by p.status
+                ) s
+            ),
+            '{}'::jsonb
+        ),
+        'outboxByStatus',
+        coalesce(
+            (
+                select jsonb_object_agg(status, total)
+                from (
+                    select o.status::text as status, count(*) as total
+                    from payment_outbox o
+                    group by o.status
+                ) s
+            ),
+            '{}'::jsonb
+        ),
+        'createdLastMinute',
+        (
+            select count(*)
+            from payments p
+            where p.created_at >= now() - interval '1 minute'
+        ),
+        'successfulLastMinute',
+        (
+            select count(*)
+            from payments p
+            where p.status = 'SUCCESS'
+              and p.updated_at >= now() - interval '1 minute'
+        ),
+        'pendingOutbox',
+        (
+            select count(*)
+            from payment_outbox o
+            where o.status = 'PENDING'
+        )
+    );
+$$;
+
 create or replace function register_payment_attempt(
     p_payment_id uuid,
     p_provider_id varchar,
@@ -952,6 +1098,11 @@ create trigger trg_payments_sync_requisite
 after insert or update of requisite on payments
 for each row execute function sync_payment_requisite();
 
+drop trigger if exists trg_payments_enqueue_created on payments;
+create trigger trg_payments_enqueue_created
+after insert on payments
+for each row execute function enqueue_payment_created();
+
 drop trigger if exists trg_payment_attempts_audit on payment_attempts;
 create trigger trg_payment_attempts_audit
 after insert on payment_attempts
@@ -977,6 +1128,9 @@ create index if not exists idx_payments_provider_created
 create index if not exists idx_payments_status
     on payments (status);
 
+create index if not exists idx_payments_status_created
+    on payments (status, created_at);
+
 create index if not exists idx_payments_service_category
     on payments (service_category);
 
@@ -997,3 +1151,9 @@ create index if not exists idx_audit_payment_created
 
 create index if not exists idx_requisites_payment
     on payment_requisites (payment_id);
+
+create index if not exists idx_outbox_status_available
+    on payment_outbox (status, available_at, created_at);
+
+create index if not exists idx_outbox_payment
+    on payment_outbox (payment_id);

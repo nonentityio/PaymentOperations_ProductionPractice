@@ -8,6 +8,7 @@ import org.eltech.application.dto.CreatePaymentCommand
 import org.eltech.application.dto.CreatePaymentResult
 import org.eltech.application.port.out.PaymentRepositoryPort
 import org.eltech.domain.model.Payment
+import org.eltech.domain.model.PaymentOutboxItem
 import org.eltech.domain.model.PaymentStatus
 import org.eltech.domain.model.PaymentStatusChange
 import org.eltech.util.firstOrNull
@@ -122,6 +123,36 @@ class PostgresPaymentRepository(private val db: Pool) : PaymentRepositoryPort {
             from list_payments($1, $2)
             """.trimIndent()
         ).execute(Tuple.of(clientId, 50)).map { rows -> rows.map(::paymentFromRow) }
+    }
+
+    override fun claimPaymentOutboxBatch(limit: Int): Future<List<PaymentOutboxItem>> {
+        return db.preparedQuery(
+            """
+            select outbox_id, payment_id, provider_id, event_type
+            from claim_payment_outbox_batch($1)
+            """.trimIndent()
+        ).execute(Tuple.of(limit)).map { rows ->
+            rows.map { row ->
+                PaymentOutboxItem(
+                    outboxId = row.getUUID("outbox_id"),
+                    paymentId = row.getUUID("payment_id"),
+                    providerId = row.getString("provider_id"),
+                    eventType = row.getString("event_type")
+                )
+            }
+        }
+    }
+
+    override fun markPaymentOutboxDone(outboxId: UUID): Future<Void> {
+        return db.preparedQuery("select mark_payment_outbox_done($1)")
+            .execute(Tuple.of(outboxId))
+            .mapEmpty()
+    }
+
+    override fun releaseStalePaymentOutbox(afterSeconds: Int): Future<Int> {
+        return db.preparedQuery("select release_stale_payment_outbox($1) as released")
+            .execute(Tuple.of(afterSeconds))
+            .map { rows -> rows.firstOrNull()?.getInteger("released") ?: 0 }
     }
 
     private fun paymentFromRow(row: Row): Payment {

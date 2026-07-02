@@ -6,6 +6,7 @@ import org.eltech.application.dto.CreatePaymentResult
 import org.eltech.application.port.out.PaymentEventPublisher
 import org.eltech.application.port.out.PaymentRepositoryPort
 import org.eltech.domain.model.Payment
+import org.eltech.domain.model.PaymentOutboxItem
 import org.eltech.domain.model.PaymentStatus
 import org.eltech.domain.model.PaymentStatusChange
 import java.math.BigDecimal
@@ -191,5 +192,17 @@ private class FakePaymentRepository(private val payment: Payment) : PaymentRepos
 
     override fun listPayments(clientId: String?): Future<List<Payment>> {
         return Future.succeededFuture(listOf(payment))
+    }
+
+    override fun claimPaymentOutboxBatch(limit: Int): Future<List<PaymentOutboxItem>> {
+        return Future.succeededFuture(emptyList())
+    }
+
+    override fun markPaymentOutboxDone(outboxId: UUID): Future<Void> {
+        return Future.succeededFuture()
+    }
+
+    override fun releaseStalePaymentOutbox(afterSeconds: Int): Future<Int> {
+        return Future.succeededFuture(0)
     }
 }

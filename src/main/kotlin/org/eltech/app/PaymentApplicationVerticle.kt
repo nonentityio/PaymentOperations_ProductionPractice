@@ -8,9 +8,11 @@ import io.vertx.ext.web.Router
 import io.vertx.ext.web.handler.BodyHandler
 import io.vertx.ext.web.handler.StaticHandler
 import io.vertx.sqlclient.Pool
-import org.eltech.adapter.`in`.eventbus.VertxPaymentEventPublisher
+import org.eltech.adapter.`in`.eventbus.NoopPaymentEventPublisher
+import org.eltech.adapter.`in`.eventbus.PaymentOutboxWorker
 import org.eltech.adapter.`in`.http.AuthHandler
 import org.eltech.adapter.`in`.http.HealthRoutes
+import org.eltech.adapter.`in`.http.MetricsRoutes
 import org.eltech.adapter.`in`.http.PaymentRoutes
 import org.eltech.adapter.out.persistence.PostgresPaymentRepository
 import org.eltech.adapter.out.provider.DemoProviderProcessor
@@ -28,10 +30,11 @@ class PaymentApplicationVerticle : AbstractVerticle() {
         requireNativeEngines()
         db = Database.createPool(vertx)
         val repository = PostgresPaymentRepository(db)
-        val paymentService = PaymentService(repository, VertxPaymentEventPublisher(vertx))
+        val paymentService = PaymentService(repository, NoopPaymentEventPublisher)
         val processor = DemoProviderProcessor(vertx, repository)
 
         vertx.eventBus().consumer<JsonObject>(EventBusAddresses.PAYMENT_CREATED, processor::processPayment)
+        PaymentOutboxWorker(vertx, repository).start()
         startHttpServer(paymentService)
             .onSuccess { startPromise.complete() }
             .onFailure(startPromise::fail)
@@ -68,6 +71,7 @@ class PaymentApplicationVerticle : AbstractVerticle() {
 
         val authHandler = AuthHandler(apiToken(), apiTokenHash())
         HealthRoutes(db).mount(router)
+        MetricsRoutes(db, authHandler).mount(router)
         PaymentRoutes(paymentService, paymentService, paymentService, paymentService, authHandler).mount(router)
 
         val port = envInt("PORT", envInt("HTTP_PORT", 8080))

@@ -4,6 +4,7 @@ import io.vertx.core.Future
 import org.eltech.application.dto.CreatePaymentCommand
 import org.eltech.application.dto.CreatePaymentResult
 import org.eltech.domain.model.Payment
+import org.eltech.domain.model.PaymentOutboxItem
 import org.eltech.domain.model.PaymentStatus
 import org.eltech.domain.model.PaymentStatusChange
 import java.util.UUID
@@ -16,5 +17,7 @@ interface PaymentRepositoryPort {
     fun fetchPayment(paymentId: UUID): Future<Payment>
     fun fetchHistory(paymentId: UUID): Future<List<PaymentStatusChange>>
     fun listPayments(clientId: String?): Future<List<Payment>>
+    fun claimPaymentOutboxBatch(limit: Int): Future<List<PaymentOutboxItem>>
+    fun markPaymentOutboxDone(outboxId: UUID): Future<Void>
+    fun releaseStalePaymentOutbox(afterSeconds: Int): Future<Int>
 }
-
