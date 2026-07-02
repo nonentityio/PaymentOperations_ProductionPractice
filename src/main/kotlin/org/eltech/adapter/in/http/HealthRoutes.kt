@@ -17,7 +17,7 @@ class HealthRoutes(private val db: Pool) {
                             .put("paymentRoutingEngine", "native-cpp")
                     )
                 }
-                .onFailure { fail(ctx, 503, it.message ?: "database unavailable") }
+                .onFailure { fail(ctx, 503, "database unavailable") }
         }
     }
 }

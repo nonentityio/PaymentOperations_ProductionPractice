@@ -3,9 +3,9 @@ services:
     image: postgres:17-alpine
     container_name: payment-operations-postgres
     environment:
-      POSTGRES_DB: payment_ops
-      POSTGRES_USER: payment
-      POSTGRES_PASSWORD: payment
+      POSTGRES_DB: ${POSTGRES_DB:-payment_ops}
+      POSTGRES_USER: ${POSTGRES_USER:-payment}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-payment}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
     ports:
       - "55432:5432"

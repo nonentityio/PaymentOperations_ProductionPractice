@@ -12,6 +12,9 @@ object PgConnectOptionsFactory {
         if (!databaseUrl.isNullOrBlank()) {
             return fromDatabaseUrl(databaseUrl)
         }
+        if (System.getenv("DYNO") != null) {
+            throw IllegalStateException("DATABASE_URL is required in Heroku environment")
+        }
 
         return PgConnectOptions()
             .setHost(System.getenv("PGHOST") ?: "localhost")
@@ -20,7 +23,7 @@ object PgConnectOptionsFactory {
             .setUser(System.getenv("PGUSER") ?: "payment")
             .setPassword(System.getenv("PGPASSWORD") ?: "payment")
             .setCachePreparedStatements(true)
-            .setPipeliningLimit(32)
+            .setPipeliningLimit(System.getenv("PG_PIPELINING_LIMIT")?.toIntOrNull() ?: 64)
     }
 
     private fun fromDatabaseUrl(value: String): PgConnectOptions {
@@ -37,7 +40,7 @@ object PgConnectOptionsFactory {
             .setPassword(userInfo.getOrNull(1)?.urlDecode().orEmpty())
             .setSslMode(if (sslRequired) SslMode.REQUIRE else SslMode.DISABLE)
             .setCachePreparedStatements(true)
-            .setPipeliningLimit(32)
+            .setPipeliningLimit(System.getenv("PG_PIPELINING_LIMIT")?.toIntOrNull() ?: 64)
     }
 
     private fun String.urlDecode(): String =

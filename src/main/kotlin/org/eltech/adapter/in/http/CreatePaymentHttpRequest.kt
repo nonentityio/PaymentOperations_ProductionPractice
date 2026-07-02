@@ -45,15 +45,12 @@ data class CreatePaymentHttpRequest(
             val requisite = body.getString("requisite")?.trim().orEmpty()
             val serviceCategory = body.getString("serviceCategory")?.trim()?.uppercase().orEmpty().ifBlank { "TRANSFER" }
             val serviceId = body.getString("serviceId")?.trim().orEmpty().ifBlank { ServiceRequisiteValidator.defaultServiceId(serviceCategory) }
-            var providerId = body.getString("providerId")?.trim().orEmpty()
-            if (providerId.isBlank()) {
-                providerId = "demo-provider"
-            }
+            val providerId = body.getString("providerId")?.trim().orEmpty()
             val amount = parseAmount(body)
             val idempotencyKey = ctx.request().getHeader("Idempotency-Key")?.trim().orEmpty()
 
-            if (clientId.isBlank() || currency.isBlank() || requisite.isBlank() || amount == null) {
-                throw IllegalArgumentException("clientId, amount, currency and requisite are required")
+            if (clientId.isBlank() || providerId.isBlank() || currency.isBlank() || requisite.isBlank() || amount == null) {
+                throw IllegalArgumentException("clientId, providerId, amount, currency and requisite are required")
             }
             if (currency.length != 3) {
                 throw IllegalArgumentException("currency must be ISO-4217 code, for example KGS or USD")

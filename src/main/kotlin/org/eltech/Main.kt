@@ -7,5 +7,5 @@ fun main() {
     val vertx = Vertx.vertx()
     vertx.deployVerticle(PaymentApplicationVerticle())
         .onSuccess { println("PaymentOperations backend started") }
-        .onFailure { it.printStackTrace() }
+        .onFailure { System.err.println("PaymentOperations backend failed to start: ${it::class.simpleName}") }
 }

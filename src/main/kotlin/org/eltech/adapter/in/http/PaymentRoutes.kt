@@ -36,7 +36,7 @@ class PaymentRoutes(
                 if (it is IllegalArgumentException) {
                     fail(ctx, 409, it.message ?: "payment cannot be cancelled")
                 } else {
-                    fail(ctx, 500, it.message ?: "payment cancellation failed")
+                    fail(ctx, 500, "payment cancellation failed")
                 }
             }
     }
@@ -68,7 +68,7 @@ class PaymentRoutes(
                 } else if (it is IllegalArgumentException) {
                     fail(ctx, 400, it.message ?: "invalid payment request")
                 } else {
-                    fail(ctx, 500, it.message ?: "payment creation failed")
+                    fail(ctx, 500, "payment creation failed")
                 }
             }
     }
@@ -82,13 +82,13 @@ class PaymentRoutes(
 
         getPaymentUseCase.getPayment(paymentId)
             .onSuccess { details -> ok(ctx, paymentDetailsToJson(details)) }
-            .onFailure { fail(ctx, 404, it.message ?: "payment not found") }
+            .onFailure { fail(ctx, 404, "payment not found") }
     }
 
     private fun listPayments(ctx: RoutingContext) {
         val clientId = ctx.queryParam("clientId").firstOrNull()
         listPaymentsUseCase.listPayments(clientId)
             .onSuccess { items -> ok(ctx, JsonObject().put("items", items.map(::paymentToJson))) }
-            .onFailure { fail(ctx, 500, it.message ?: "failed to list payments") }
+            .onFailure { fail(ctx, 500, "failed to list payments") }
     }
 }
