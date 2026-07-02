@@ -11,7 +11,11 @@ object Database {
     fun createPool(vertx: Vertx): Pool {
         return PgBuilder.pool()
             .connectingTo(PgConnectOptionsFactory.fromEnv())
-            .with(PoolOptions().setMaxSize(envInt("PG_POOL_SIZE", 16)))
+            .with(
+                PoolOptions()
+                    .setMaxSize(envInt("PG_POOL_SIZE", 16))
+                    .setMaxWaitQueueSize(envInt("PG_WAIT_QUEUE_SIZE", 2048))
+            )
             .using(vertx)
             .build()
     }

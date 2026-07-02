@@ -24,7 +24,7 @@ string detect_provider(const string &requisite, const string &requested_provider
     if (!requested_provider.empty()) {
         return requested_provider;
     }
-    return "demo-provider";
+    return "merchant-network";
 }
 
 const char *processing_mode(long amount_minor, const string &currency) {
