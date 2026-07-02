@@ -167,12 +167,35 @@ curl -X POST http://localhost:8080/payments \
   -H "Content-Type: application/json" \
   -d '{
     "clientId": "eldik-test-bank",
-    "providerId": "demo-provider",
+    "providerId": "eldik2-test-bank",
+    "serviceCategory": "TRANSFER",
     "amount": "150.00",
     "currency": "KGS",
-    "requisite": "ELDIK-996700333444"
+    "requisite": "ELDIK2-996700333444"
   }'
 ```
+
+### Payment Metrics
+
+```bash
+curl http://localhost:8080/metrics/payments \
+  -H "Authorization: Bearer $PAYMENT_API_TOKEN"
+```
+
+The metrics endpoint shows payment counts by status, outbox status and how many payments were created or completed during the last minute.
+
+## Performance Settings
+
+| Variable | Default | Purpose |
+|---|---:|---|
+| `PG_POOL_SIZE` | `16` | PostgreSQL connection pool size |
+| `PG_WAIT_QUEUE_SIZE` | `2048` | Maximum queued database requests |
+| `PG_PIPELINING_LIMIT` | `64` | PostgreSQL pipelining for async requests |
+| `PAYMENT_OUTBOX_BATCH_SIZE` | `64` | How many payment events are claimed at once |
+| `PAYMENT_OUTBOX_INTERVAL_MS` | `50` | Outbox polling interval |
+| `PAYMENT_PROVIDER_FIRST_DELAY_MS` | `40` | Demo provider first response delay |
+| `PAYMENT_PROVIDER_SUCCESS_DELAY_MS` | `60` | Demo provider success delay |
+| `PAYMENT_PROVIDER_RETRY_DELAY_MS` | `120` | Demo retry delay |
 
 ### List Payments
 
