@@ -29,15 +29,23 @@ class PaymentApplicationVerticle : AbstractVerticle() {
     override fun start(startPromise: Promise<Void>) {
         requireNativeEngines()
         db = Database.createPool(vertx)
+        Database.applySchema(db)
+            .onSuccess {
+                startApplication()
+                    .onSuccess { startPromise.complete() }
+                    .onFailure(startPromise::fail)
+            }
+            .onFailure(startPromise::fail)
+    }
+
+    private fun startApplication(): Future<Void> {
         val repository = PostgresPaymentRepository(db)
         val paymentService = PaymentService(repository, NoopPaymentEventPublisher)
         val processor = DemoProviderProcessor(vertx, repository)
 
         vertx.eventBus().consumer<JsonObject>(EventBusAddresses.PAYMENT_CREATED, processor::processPayment)
         PaymentOutboxWorker(vertx, repository).start()
-        startHttpServer(paymentService)
-            .onSuccess { startPromise.complete() }
-            .onFailure(startPromise::fail)
+        return startHttpServer(paymentService)
     }
 
     private fun startHttpServer(paymentService: PaymentService): Future<Void> {

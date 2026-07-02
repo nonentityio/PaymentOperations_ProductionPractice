@@ -133,6 +133,7 @@ create table if not exists payments (
 
 alter table payments add column if not exists service_category service_category not null default 'TRANSFER';
 alter table payments add column if not exists failure_reason varchar(255);
+alter table payments alter column provider_id set default 'merchant-network';
 
 do $$
 begin
@@ -332,6 +333,12 @@ create table if not exists payment_outbox (
     processed_at timestamptz,
     unique (payment_id, event_type)
 );
+
+insert into payment_outbox (payment_id, provider_id, event_type)
+select p.payment_id, p.provider_id, 'PAYMENT_CREATED'
+from payments p
+where p.status = 'CREATED'
+on conflict (payment_id, event_type) do nothing;
 
 alter table payments alter column payment_id set default gen_random_uuid();
 alter table idempotency_keys alter column key_id set default gen_random_uuid();

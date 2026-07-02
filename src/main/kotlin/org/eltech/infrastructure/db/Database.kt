@@ -1,11 +1,13 @@
 package org.eltech.infrastructure.db
 
+import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.pgclient.PgBuilder
 import io.vertx.sqlclient.Pool
 import io.vertx.sqlclient.PoolOptions
 import org.eltech.infrastructure.config.PgConnectOptionsFactory
 import org.eltech.util.envInt
+import java.nio.charset.StandardCharsets
 
 object Database {
     fun createPool(vertx: Vertx): Pool {
@@ -18,5 +20,15 @@ object Database {
             )
             .using(vertx)
             .build()
+    }
+
+    fun applySchema(pool: Pool): Future<Void> {
+        return pool.query(loadSchemaSql()).execute().mapEmpty()
+    }
+
+    private fun loadSchemaSql(): String {
+        val stream = Database::class.java.getResourceAsStream("/db/schema.sql")
+            ?: error("db/schema.sql resource was not found")
+        return stream.use { it.readBytes().toString(StandardCharsets.UTF_8) }
     }
 }
