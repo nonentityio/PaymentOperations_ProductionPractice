@@ -36,6 +36,27 @@
         </article>
     </section>
 
+    <section class="panel control-panel" aria-label="Payment category filters">
+        <div>
+            <h2>Категории</h2>
+            <p>Можно смотреть один тип платежей и двигаться внутри выбранной выборки</p>
+        </div>
+        <div id="categoryFilters" class="chip-row"></div>
+        <label class="filter compact-filter">
+            <span>Статус</span>
+            <select id="statusFilter">
+                <option value="ALL">Все статусы</option>
+                <option value="CREATED">CREATED</option>
+                <option value="CHECK_REQUISITE">CHECK_REQUISITE</option>
+                <option value="CONFIRMED">CONFIRMED</option>
+                <option value="PROCESSING">PROCESSING</option>
+                <option value="SUCCESS">SUCCESS</option>
+                <option value="FAILED">FAILED</option>
+                <option value="CANCELLED">CANCELLED</option>
+            </select>
+        </label>
+    </section>
+
     <section class="content">
         <section class="panel payments-panel">
             <div class="panel-head">
@@ -72,6 +93,10 @@
                 <div>
                     <h2>Ход операции</h2>
                     <p id="selectedStatus">Выберите платеж</p>
+                </div>
+                <div class="nav-buttons" aria-label="Payment navigation">
+                    <button id="prevPaymentBtn" class="secondary-button" type="button" title="Предыдущий платеж">←</button>
+                    <button id="nextPaymentBtn" class="secondary-button" type="button" title="Следующий платеж">→</button>
                 </div>
             </div>
             <div id="detailBody" class="empty-state">

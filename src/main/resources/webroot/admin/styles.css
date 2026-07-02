@@ -26,7 +26,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
     font: inherit;
 }
 
@@ -90,6 +91,70 @@ h2 {
     margin-bottom: 16px;
 }
 
+.control-panel {
+    min-height: 72px;
+    display: grid;
+    grid-template-columns: minmax(220px, 0.8fr) minmax(280px, 1.4fr) 180px;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+}
+
+.control-panel h2,
+.control-panel p {
+    margin: 0;
+}
+
+.control-panel p {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.category-filter,
+.secondary-button {
+    min-height: 34px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #f8fafc;
+    color: var(--text);
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.category-filter {
+    padding: 0 10px;
+    font-size: 12px;
+}
+
+.category-filter.active {
+    border-color: rgba(15, 118, 110, 0.32);
+    background: #dff3ef;
+    color: var(--primary);
+}
+
+.secondary-button {
+    width: 36px;
+    padding: 0;
+}
+
+.secondary-button:disabled {
+    cursor: default;
+    opacity: 0.42;
+}
+
+.nav-buttons {
+    display: flex;
+    gap: 8px;
+}
+
 .metric,
 .panel {
     background: var(--panel);
@@ -147,6 +212,20 @@ h2 {
     padding: 0 10px;
     background: #f8fafc;
     color: var(--text);
+}
+
+.filter select {
+    width: 100%;
+    min-height: 36px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0 10px;
+    background: #f8fafc;
+    color: var(--text);
+}
+
+.compact-filter {
+    width: 100%;
 }
 
 .table-wrap {
@@ -417,6 +496,10 @@ tbody tr.selected {
 
 @media (max-width: 1060px) {
     .content {
+        grid-template-columns: 1fr;
+    }
+
+    .control-panel {
         grid-template-columns: 1fr;
     }
 

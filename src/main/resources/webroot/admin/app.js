@@ -1,6 +1,8 @@
 const state = {
     payments: [],
     selectedPaymentId: null,
+    categoryFilter: "ALL",
+    statusFilter: "ALL",
     refreshTimer: null,
     token: sessionStorage.getItem("paymentOpsToken") || ""
 };
@@ -9,6 +11,10 @@ const els = {
     health: document.querySelector("#health"),
     refreshBtn: document.querySelector("#refreshBtn"),
     clientFilter: document.querySelector("#clientFilter"),
+    categoryFilters: document.querySelector("#categoryFilters"),
+    statusFilter: document.querySelector("#statusFilter"),
+    prevPaymentBtn: document.querySelector("#prevPaymentBtn"),
+    nextPaymentBtn: document.querySelector("#nextPaymentBtn"),
     paymentsTable: document.querySelector("#paymentsTable"),
     selectedStatus: document.querySelector("#selectedStatus"),
     detailBody: document.querySelector("#detailBody"),
@@ -76,6 +82,18 @@ function money(payment) {
     return `${payment.amount} ${payment.currency}`;
 }
 
+function categoryOf(payment) {
+    return payment.serviceCategory || "TRANSFER";
+}
+
+function visiblePayments() {
+    return state.payments.filter((payment) => {
+        const categoryMatches = state.categoryFilter === "ALL" || categoryOf(payment) === state.categoryFilter;
+        const statusMatches = state.statusFilter === "ALL" || payment.status === state.statusFilter;
+        return categoryMatches && statusMatches;
+    });
+}
+
 function toast(message) {
     document.querySelector(".toast")?.remove();
     const node = document.createElement("div");
@@ -99,6 +117,10 @@ async function loadPayments() {
     const query = clientId ? `?clientId=${encodeURIComponent(clientId)}` : "";
     const payload = await api(`/payments${query}`);
     state.payments = payload.items || [];
+    if (state.selectedPaymentId && !visiblePayments().some((payment) => payment.paymentId === state.selectedPaymentId)) {
+        clearSelectedPayment("Выберите платеж из текущей выборки");
+    }
+    renderCategoryFilters();
     renderMetrics();
     renderTable();
 
@@ -108,10 +130,11 @@ async function loadPayments() {
 }
 
 function renderMetrics() {
-    const total = state.payments.length;
-    const succeeded = state.payments.filter((p) => p.status === "SUCCESS").length;
-    const failed = state.payments.filter((p) => p.status === "FAILED").length;
-    const processing = state.payments.filter((p) =>
+    const payments = visiblePayments();
+    const total = payments.length;
+    const succeeded = payments.filter((p) => p.status === "SUCCESS").length;
+    const failed = payments.filter((p) => p.status === "FAILED").length;
+    const processing = payments.filter((p) =>
         ["CREATED", "CHECK_REQUISITE", "CONFIRMED", "PROCESSING"].includes(p.status)
     ).length;
 
@@ -121,20 +144,50 @@ function renderMetrics() {
     els.metricFailed.textContent = failed;
 }
 
+function renderCategoryFilters() {
+    const categories = ["ALL", "TRANSFER", "MOBILE_TOPUP", "UTILITY", "CARD_PAYMENT", "WALLET"];
+    const counts = state.payments.reduce((acc, payment) => {
+        const category = categoryOf(payment);
+        acc[category] = (acc[category] || 0) + 1;
+        return acc;
+    }, { ALL: state.payments.length });
+
+    els.categoryFilters.replaceChildren();
+    categories.forEach((category) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "category-filter";
+        button.classList.toggle("active", state.categoryFilter === category);
+        button.textContent = `${category === "ALL" ? "Все" : category} ${counts[category] || 0}`;
+        button.addEventListener("click", () => {
+            state.categoryFilter = category;
+            if (state.selectedPaymentId && !visiblePayments().some((payment) => payment.paymentId === state.selectedPaymentId)) {
+                clearSelectedPayment("Выберите платеж из текущей категории");
+            }
+            renderCategoryFilters();
+            renderMetrics();
+            renderTable();
+        });
+        els.categoryFilters.appendChild(button);
+    });
+}
+
 function renderTable() {
     els.paymentsTable.replaceChildren();
+    const payments = visiblePayments();
 
-    if (state.payments.length === 0) {
+    if (payments.length === 0) {
         const row = document.createElement("tr");
         const cell = document.createElement("td");
         cell.colSpan = 7;
-        cell.textContent = "Платежи не найдены";
+        cell.textContent = "Платежи в этой выборке не найдены";
         row.appendChild(cell);
         els.paymentsTable.appendChild(row);
+        renderNavigation();
         return;
     }
 
-    state.payments.forEach((payment) => {
+    payments.forEach((payment) => {
         const row = els.rowTemplate.content.firstElementChild.cloneNode(true);
         row.classList.toggle("selected", payment.paymentId === state.selectedPaymentId);
         row.querySelector(".status").textContent = payment.status;
@@ -144,18 +197,57 @@ function renderTable() {
         row.querySelector(".client").textContent = payment.clientId;
         row.querySelector(".category").textContent = payment.serviceCategory || "TRANSFER";
         row.querySelector(".category").classList.add(payment.serviceCategory || "TRANSFER");
+        row.querySelector(".category").title = "Показать только эту категорию";
+        row.querySelector(".category").addEventListener("click", (event) => {
+            event.stopPropagation();
+            state.categoryFilter = categoryOf(payment);
+            if (state.selectedPaymentId && !visiblePayments().some((item) => item.paymentId === state.selectedPaymentId)) {
+                clearSelectedPayment("Выберите платеж из текущей категории");
+            }
+            renderCategoryFilters();
+            renderMetrics();
+            renderTable();
+        });
         row.querySelector(".amount").textContent = money(payment);
         row.querySelector(".provider").textContent = payment.providerId;
         row.querySelector(".created").textContent = formatDate(payment.createdAt);
         row.addEventListener("click", () => selectPayment(payment.paymentId));
         els.paymentsTable.appendChild(row);
     });
+    renderNavigation();
 }
 
 async function selectPayment(paymentId) {
     state.selectedPaymentId = paymentId;
     renderTable();
     await loadPaymentDetails(paymentId, true);
+}
+
+function clearSelectedPayment(message) {
+    state.selectedPaymentId = null;
+    els.selectedStatus.textContent = "Выберите платеж";
+    els.detailBody.className = "empty-state";
+    els.detailBody.textContent = message || "Здесь появятся реквизит, текущий статус и история переходов выбранного платежа.";
+    renderNavigation();
+}
+
+function selectedIndex() {
+    return visiblePayments().findIndex((payment) => payment.paymentId === state.selectedPaymentId);
+}
+
+function renderNavigation() {
+    const payments = visiblePayments();
+    const index = selectedIndex();
+    els.prevPaymentBtn.disabled = index <= 0;
+    els.nextPaymentBtn.disabled = index < 0 || index >= payments.length - 1;
+}
+
+async function moveSelection(offset) {
+    const payments = visiblePayments();
+    const index = selectedIndex();
+    const nextIndex = index + offset;
+    if (nextIndex < 0 || nextIndex >= payments.length) return;
+    await selectPayment(payments[nextIndex].paymentId);
 }
 
 async function loadPaymentDetails(paymentId, showLoading) {
@@ -270,6 +362,16 @@ function startPolling() {
 
 function bindEvents() {
     els.refreshBtn.addEventListener("click", () => loadPayments().catch((error) => toast(error.message)));
+    els.prevPaymentBtn.addEventListener("click", () => moveSelection(-1).catch((error) => toast(error.message)));
+    els.nextPaymentBtn.addEventListener("click", () => moveSelection(1).catch((error) => toast(error.message)));
+    els.statusFilter.addEventListener("change", () => {
+        state.statusFilter = els.statusFilter.value;
+        if (state.selectedPaymentId && !visiblePayments().some((payment) => payment.paymentId === state.selectedPaymentId)) {
+            clearSelectedPayment("Выберите платеж с текущим статусом");
+        }
+        renderMetrics();
+        renderTable();
+    });
     els.clientFilter.addEventListener("input", () => {
         clearTimeout(els.clientFilter._timer);
         els.clientFilter._timer = setTimeout(() => loadPayments().catch((error) => toast(error.message)), 300);
