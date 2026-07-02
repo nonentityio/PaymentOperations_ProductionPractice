@@ -5,6 +5,6 @@ import java.time.OffsetDateTime
 data class PaymentStatusChange(
     val oldStatus: PaymentStatus?,
     val newStatus: PaymentStatus,
-    val changedAt: OffsetDateTime
+    val changedAt: OffsetDateTime,
+    val durationMs: Long
 )
-

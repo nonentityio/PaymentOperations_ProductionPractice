@@ -12,6 +12,7 @@ import org.eltech.domain.model.PaymentOutboxItem
 import org.eltech.domain.model.PaymentStatus
 import org.eltech.domain.model.PaymentStatusChange
 import org.eltech.util.firstOrNull
+import java.time.Duration
 import java.util.UUID
 
 class PostgresPaymentRepository(private val db: Pool) : PaymentRepositoryPort {
@@ -106,11 +107,16 @@ class PostgresPaymentRepository(private val db: Pool) : PaymentRepositoryPort {
             from get_payment_history($1)
             """.trimIndent()
         ).execute(Tuple.of(paymentId)).map { rows ->
+            var previousChangedAt: java.time.OffsetDateTime? = null
             rows.map { row ->
+                val changedAt = row.getOffsetDateTime("changed_at")
+                val durationMs = previousChangedAt?.let { Duration.between(it, changedAt).toMillis().coerceAtLeast(0) } ?: 0
+                previousChangedAt = changedAt
                 PaymentStatusChange(
                     oldStatus = row.getString("old_status")?.let(PaymentStatus::valueOf),
                     newStatus = PaymentStatus.valueOf(row.getString("new_status")),
-                    changedAt = row.getOffsetDateTime("changed_at")
+                    changedAt = changedAt,
+                    durationMs = durationMs
                 )
             }
         }

@@ -280,7 +280,7 @@ tbody tr.selected {
 
 .rail {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 8px;
     padding: 10px;
     border: 1px solid var(--line);
@@ -311,6 +311,32 @@ tbody tr.selected {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.rail-step small {
+    grid-column: 2;
+    width: max-content;
+    max-width: 100%;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: #e8eef5;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.rail-step.passed small,
+.rail-step.current small {
+    background: #dff3ef;
+    color: var(--primary);
+}
+
+.rail-step.failed small {
+    background: #fde8e7;
+    color: var(--danger);
 }
 
 .rail-step.passed {

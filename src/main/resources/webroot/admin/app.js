@@ -60,6 +60,14 @@ function formatDate(value) {
     }).format(new Date(value));
 }
 
+function formatDuration(ms) {
+    if (ms === null || ms === undefined) return "-";
+    const value = Number(ms);
+    if (!Number.isFinite(value)) return "-";
+    if (value < 1000) return `${value} ms`;
+    return `${(value / 1000).toFixed(2)} s`;
+}
+
 function shortId(value) {
     return value ? value.slice(0, 8) : "-";
 }
@@ -171,7 +179,8 @@ function renderDetails(payment) {
     els.detailBody.className = "detail-body";
     els.detailBody.replaceChildren();
 
-    const rail = renderStatusRail(payment.status);
+    const history = uniqueHistory(payment.history || []);
+    const rail = renderStatusRail(payment.status, history);
     const dl = document.createElement("dl");
     dl.className = "kv";
     addKv(dl, "payment_id", payment.paymentId);
@@ -182,6 +191,7 @@ function renderDetails(payment) {
     addKv(dl, "requisite", payment.requisite);
     addKv(dl, "created_at", formatDate(payment.createdAt));
     addKv(dl, "updated_at", formatDate(payment.updatedAt));
+    addKv(dl, "total_time", formatDuration(payment.totalDurationMs));
     addKv(dl, "failure", payment.failureReason || "-");
 
     const timeline = document.createElement("div");
@@ -190,23 +200,24 @@ function renderDetails(payment) {
     title.textContent = "История статусов";
     timeline.appendChild(title);
 
-    uniqueHistory(payment.history || []).forEach((item) => {
+    history.forEach((item) => {
         const step = document.createElement("div");
         step.className = "step";
         const label = document.createElement("strong");
         label.textContent = `${item.oldStatus || "START"} -> ${item.newStatus}`;
-        const time = document.createElement("span");
-        time.textContent = formatDate(item.changedAt);
-        step.append(label, time);
+        const meta = document.createElement("span");
+        meta.textContent = `${formatDate(item.changedAt)} · +${formatDuration(item.durationMs)}`;
+        step.append(label, meta);
         timeline.appendChild(step);
     });
 
     els.detailBody.append(rail, dl, timeline);
 }
 
-function renderStatusRail(status) {
+function renderStatusRail(status, history) {
     const stages = ["CREATED", "CHECK_REQUISITE", "CONFIRMED", "PROCESSING", status === "FAILED" ? "FAILED" : status === "CANCELLED" ? "CANCELLED" : "SUCCESS"];
     const activeIndex = stages.indexOf(status);
+    const durations = new Map(history.map((item) => [item.newStatus, item.durationMs]));
     const rail = document.createElement("div");
     rail.className = "rail";
 
@@ -221,7 +232,9 @@ function renderStatusRail(status) {
         const dot = document.createElement("span");
         const label = document.createElement("strong");
         label.textContent = stage;
-        item.append(dot, label);
+        const speed = document.createElement("small");
+        speed.textContent = durations.has(stage) ? formatDuration(durations.get(stage)) : "-";
+        item.append(dot, label, speed);
         rail.appendChild(item);
     });
 

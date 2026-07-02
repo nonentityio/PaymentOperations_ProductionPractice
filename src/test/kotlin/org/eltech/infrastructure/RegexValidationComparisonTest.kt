@@ -110,6 +110,54 @@ class RegexValidationComparisonTest {
         assertEquals(runKotlinManual(cases, iterations), runNativeCPackedBatch(packed, iterations))
     }
 
+    @Test
+    fun javaKotlinToNativeCBatchIsShownForOneThousandPayments() {
+        val cases = arrayOf(
+            ValidationCase("996700333444", "eldik2-test-bank", "KGS", 10_000, true),
+            ValidationCase("ELDIK2-996700333444", "eldik2-test-bank", "KGS", 25_500, true),
+            ValidationCase("ACC 123456", "merchant-network", "USD", 3_000, true),
+            ValidationCase("BAD@ACCOUNT", "eldik2-test-bank", "KGS", 10_000, false),
+            ValidationCase("12345", "eldik2-test-bank", "KGS", 10_000, false),
+            ValidationCase("996700333444", "bad provider!", "KGS", 10_000, false),
+            ValidationCase("996700333444", "eldik2-test-bank", "KG", 10_000, false),
+            ValidationCase("996700333444", "eldik2-test-bank", "KGS", -1, false)
+        )
+        val payments = 1_000
+        val packed = pack(cases)
+
+        repeat(5) {
+            runKotlinManual(cases, payments)
+            runNativeC(cases, payments)
+            runNativeCPackedBatch(packed, payments)
+        }
+
+        val kotlinManualNs = measureNanoTime { runKotlinManual(cases, payments) }
+        val nativeSingleNs = measureNanoTime { runNativeC(cases, payments) }
+        val nativeBatchNs = measureNanoTime { runNativeCPackedBatch(packed, payments) }
+
+        val kotlinAccepted = runKotlinManual(cases, payments)
+        val singleAccepted = runNativeC(cases, payments)
+        val batchAccepted = runNativeCPackedBatch(packed, payments)
+
+        println("")
+        println("=== 1000 payments validation demo ===")
+        println("before: Java/Kotlin -> C JNI per payment -> Java/Kotlin")
+        println("after : Java/Kotlin -> C packed batch 1000 payments -> Java/Kotlin")
+        println("mode,total,accepted,time_ms,rps")
+        println("kotlin_manual,$payments,$kotlinAccepted,${ms(kotlinManualNs)},${rps(payments, kotlinManualNs)}")
+        println("native_c_single_jni,$payments,$singleAccepted,${ms(nativeSingleNs)},${rps(payments, nativeSingleNs)}")
+        println("native_c_packed_batch,$payments,$batchAccepted,${ms(nativeBatchNs)},${rps(payments, nativeBatchNs)}")
+        println("single_jni_to_batch_speedup=${nativeSingleNs.toDouble() / nativeBatchNs}")
+        println("kotlin_to_batch_ratio=${kotlinManualNs.toDouble() / nativeBatchNs}")
+
+        assertEquals(kotlinAccepted, singleAccepted)
+        assertEquals(kotlinAccepted, batchAccepted)
+        assertTrue(
+            nativeSingleNs > nativeBatchNs,
+            "Packed batch should reduce JNI overhead compared with one native call per payment"
+        )
+    }
+
     private fun runManual(values: Array<String>, iterations: Int): Int {
         var accepted = 0
         repeat(iterations) { index ->
@@ -289,6 +337,10 @@ class RegexValidationComparisonTest {
         val currencyLengths: IntArray,
         val amountsMinor: LongArray
     )
+
+    private fun ms(nanos: Long): String = "%.3f".format(nanos / 1_000_000.0)
+
+    private fun rps(total: Int, nanos: Long): String = "%.1f".format(total * 1_000_000_000.0 / nanos.coerceAtLeast(1))
 
     private companion object {
         val requisitePattern = Regex("^[A-Za-z0-9 -]{6,34}$")

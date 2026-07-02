@@ -45,6 +45,8 @@ fun paymentDetailsToJson(details: PaymentDetails): JsonObject {
                     .put("oldStatus", change.oldStatus?.name)
                     .put("newStatus", change.newStatus.name)
                     .put("changedAt", change.changedAt.toString())
+                    .put("durationMs", change.durationMs)
             })
         )
+        .put("totalDurationMs", details.history.sumOf { it.durationMs })
 }
