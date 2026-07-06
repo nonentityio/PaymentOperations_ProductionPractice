@@ -33,14 +33,39 @@ class PaymentServiceTest {
     }
 
     @Test
-    fun cancelRejectsFinishedPayment() {
+    fun cancelMovesSuccessfulPaymentToCancelledForDemoGraceWindow() {
         val id = UUID.randomUUID()
         val repository = FakePaymentRepository(payment(id, PaymentStatus.SUCCESS))
         val service = PaymentService(repository, NoopPublisher)
 
         val result = service.cancelPayment(id)
 
+        assertTrue(result.succeeded())
+        assertEquals(PaymentStatus.CANCELLED, repository.lastStatus)
+        assertEquals("Cancelled by client", repository.lastFailureReason)
+    }
+
+    @Test
+    fun cancelRejectsFailedPayment() {
+        val id = UUID.randomUUID()
+        val repository = FakePaymentRepository(payment(id, PaymentStatus.FAILED))
+        val service = PaymentService(repository, NoopPublisher)
+
+        val result = service.cancelPayment(id)
+
         assertTrue(result.failed())
+        assertFalse(repository.statusWasUpdated)
+    }
+
+    @Test
+    fun cancelIsIdempotentForAlreadyCancelledPayment() {
+        val id = UUID.randomUUID()
+        val repository = FakePaymentRepository(payment(id, PaymentStatus.CANCELLED))
+        val service = PaymentService(repository, NoopPublisher)
+
+        val result = service.cancelPayment(id)
+
+        assertTrue(result.succeeded())
         assertFalse(repository.statusWasUpdated)
     }
 

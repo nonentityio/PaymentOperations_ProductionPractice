@@ -76,10 +76,10 @@ class PaymentService(
 
     override fun cancelPayment(paymentId: UUID): Future<Void> {
         return repository.fetchPayment(paymentId).compose { payment ->
-            if (payment.status == PaymentStatus.SUCCESS || payment.status == PaymentStatus.FAILED) {
-                Future.failedFuture(IllegalArgumentException("finished payment cannot be cancelled"))
-            } else {
-                repository.updateStatus(paymentId, PaymentStatus.CANCELLED, "Cancelled by client")
+            when (payment.status) {
+                PaymentStatus.CANCELLED -> Future.succeededFuture()
+                PaymentStatus.FAILED -> Future.failedFuture(IllegalArgumentException("failed payment cannot be cancelled"))
+                else -> repository.updateStatus(paymentId, PaymentStatus.CANCELLED, "Cancelled by client")
             }
         }
     }
