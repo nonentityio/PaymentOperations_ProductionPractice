@@ -19,9 +19,11 @@ class ServiceRequisiteValidatorTest {
         assertTrue(ServiceRequisiteValidator.validate("UTILITY", "utility.water", "WATER-12345678", BigDecimal("180.00")).valid)
         assertTrue(ServiceRequisiteValidator.validate("UTILITY", "utility.gas", "GAS-12345678", BigDecimal("180.00")).valid)
         assertTrue(ServiceRequisiteValidator.validate("UTILITY", "internet.home", "NET-12345678", BigDecimal("650.00")).valid)
+        assertTrue(ServiceRequisiteValidator.validate("UTILITY", "internet.failed", "NET-FAIL-12345678", BigDecimal("650.00")).valid)
 
         assertFalse(ServiceRequisiteValidator.validate("UTILITY", "utility.water", "EL-12345678", BigDecimal("180.00")).valid)
         assertFalse(ServiceRequisiteValidator.validate("UTILITY", "internet.home", "GAS-12345678", BigDecimal("650.00")).valid)
+        assertFalse(ServiceRequisiteValidator.validate("UTILITY", "internet.failed", "NET-12345678", BigDecimal("650.00")).valid)
     }
 
     @Test

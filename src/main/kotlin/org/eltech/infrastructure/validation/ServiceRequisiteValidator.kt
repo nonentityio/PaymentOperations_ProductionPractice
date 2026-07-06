@@ -18,6 +18,7 @@ object ServiceRequisiteValidator {
         PaymentServiceRule("utility.water", "UTILITY", Regex("^WATER-[0-9]{6,12}$"), null),
         PaymentServiceRule("utility.gas", "UTILITY", Regex("^GAS-[0-9]{6,12}$"), null),
         PaymentServiceRule("internet.home", "UTILITY", Regex("^NET-[0-9]{6,12}$"), null),
+        PaymentServiceRule("internet.failed", "UTILITY", Regex("^NET-FAIL-[0-9]{6,12}$"), null),
         PaymentServiceRule("card.repayment", "CARD_PAYMENT", Regex("^(?:[0-9]{16}|[0-9]{4} [0-9]{4} [0-9]{4} [0-9]{4})$"), null),
         PaymentServiceRule("wallet.topup", "WALLET", Regex("^WAL-[A-Za-z0-9]{6,20}$"), BigDecimal("100000.00"))
     ).associateBy { it.serviceId }

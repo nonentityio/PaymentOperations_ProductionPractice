@@ -32,7 +32,7 @@ class DemoProviderProcessor(
 
                         if (payment.requisite.contains("HOLD", ignoreCase = true)) {
                             holdPaymentBeforeProvider(paymentId, providerId)
-                        } else if (payment.requisite.startsWith("BAD", ignoreCase = true)) {
+                        } else if (payment.requisite.startsWith("BAD", ignoreCase = true) || payment.requisite.contains("FAIL", ignoreCase = true)) {
                             rejectInvalidRequisite(paymentId, providerId)
                         } else if (payment.requisite.contains("TIMEOUT", ignoreCase = true)) {
                             confirmPayment(paymentId).onSuccess {
