@@ -8,8 +8,8 @@ import io.vertx.ext.web.Router
 import io.vertx.ext.web.handler.BodyHandler
 import io.vertx.ext.web.handler.StaticHandler
 import io.vertx.sqlclient.Pool
-import org.eltech.adapter.`in`.eventbus.NoopPaymentEventPublisher
 import org.eltech.adapter.`in`.eventbus.PaymentOutboxWorker
+import org.eltech.adapter.`in`.eventbus.VertxPaymentEventPublisher
 import org.eltech.adapter.`in`.http.AuthHandler
 import org.eltech.adapter.`in`.http.HealthRoutes
 import org.eltech.adapter.`in`.http.MetricsRoutes
@@ -40,7 +40,7 @@ class PaymentApplicationVerticle : AbstractVerticle() {
 
     private fun startApplication(): Future<Void> {
         val repository = PostgresPaymentRepository(db)
-        val paymentService = PaymentService(repository, NoopPaymentEventPublisher)
+        val paymentService = PaymentService(repository, VertxPaymentEventPublisher(vertx))
         val processor = DemoProviderProcessor(vertx, repository)
 
         vertx.eventBus().consumer<JsonObject>(EventBusAddresses.PAYMENT_CREATED, processor::processPayment)

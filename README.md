@@ -150,6 +150,47 @@ On Linux, native files use `.so` instead of `.dylib`.
 
 If C/C++ modules are not found, the service does not start. Validation and routing are native-only.
 
+## Heroku Cost Control
+
+The service keeps the fast payment path: a new payment is published to Vert.x EventBus immediately.
+The outbox still works as a recovery mechanism, but on Heroku it polls less often while the app is idle.
+
+Recommended config for a demo Heroku app:
+
+```bash
+heroku config:set \
+  PG_POOL_SIZE=8 \
+  PG_WAIT_QUEUE_SIZE=1024 \
+  PAYMENT_OUTBOX_BATCH_SIZE=64 \
+  PAYMENT_OUTBOX_INTERVAL_MS=1000 \
+  JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -XX:+UseStringDeduplication" \
+  -a <payment-operations-app>
+```
+
+Before a live demonstration:
+
+```bash
+heroku ps:scale web=1 -a <payment-operations-app>
+```
+
+When the stand is not needed:
+
+```bash
+heroku ps:scale web=0 -a <payment-operations-app>
+```
+
+For a short load test, keep the same code and temporarily raise the pool:
+
+```bash
+heroku config:set PG_POOL_SIZE=12 PAYMENT_OUTBOX_INTERVAL_MS=250 -a <payment-operations-app>
+```
+
+After the load test:
+
+```bash
+heroku config:set PG_POOL_SIZE=8 PAYMENT_OUTBOX_INTERVAL_MS=1000 -a <payment-operations-app>
+```
+
 ## API Examples
 
 ### Health

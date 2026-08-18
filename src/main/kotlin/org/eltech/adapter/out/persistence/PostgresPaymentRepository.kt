@@ -11,51 +11,51 @@ import org.eltech.domain.model.Payment
 import org.eltech.domain.model.PaymentOutboxItem
 import org.eltech.domain.model.PaymentStatus
 import org.eltech.domain.model.PaymentStatusChange
-import org.eltech.util.firstOrNull
 import java.time.Duration
+import java.time.OffsetDateTime
 import java.util.UUID
 
-class PostgresPaymentRepository(private val db: Pool) : PaymentRepositoryPort {
+class PostgresPaymentRepository(private val pool: Pool) : PaymentRepositoryPort {
     override fun createPayment(command: CreatePaymentCommand): Future<CreatePaymentResult> {
-        return db.preparedQuery(
-            """
-            select payment_id, client_id, provider_id, service_category, amount, currency, status, idempotent_replay
-            from create_payment_request($1, $2, $3::service_category, $4, $5::currency_code, $6, $7, $8)
-            """.trimIndent()
-        ).execute(
-            Tuple.of(
-                command.clientId,
-                command.providerId,
-                command.serviceCategory,
-                command.amount,
-                command.currency,
-                command.requisite,
-                command.idempotencyKey,
-                command.requestHash
+        val sql = """
+            select *
+            from create_payment_request(
+                $1::varchar,
+                $2::varchar,
+                $3::service_category,
+                $4::numeric,
+                $5::currency_code,
+                $6::varchar,
+                $7::varchar,
+                $8::varchar
             )
-        ).map { rows ->
-            val row = rows.firstOrNull() ?: error("payment was not returned")
-            CreatePaymentResult(
-                paymentId = row.getUUID("payment_id"),
-                clientId = row.getString("client_id"),
-                providerId = row.getString("provider_id"),
-                serviceCategory = row.getString("service_category"),
-                amount = row.getBigDecimal("amount"),
-                currency = row.getString("currency"),
-                status = PaymentStatus.valueOf(row.getString("status")),
-                idempotentReplay = row.getBoolean("idempotent_replay")
+        """.trimIndent()
+
+        return pool.preparedQuery(sql)
+            .execute(
+                Tuple.of(
+                    command.clientId,
+                    command.providerId,
+                    command.serviceCategory,
+                    command.amount,
+                    command.currency,
+                    command.requisite,
+                    command.idempotencyKey,
+                    command.requestHash
+                )
             )
-        }.recover { error ->
-            if (error.message?.contains("Idempotency-Key", ignoreCase = true) == true) {
-                Future.failedFuture(IllegalArgumentException("Idempotency-Key already used with different payload"))
-            } else {
-                Future.failedFuture(error)
+            .map { rows -> rows.first().toCreatePaymentResult() }
+            .recover { error ->
+                if (error.message?.contains("Idempotency-Key", ignoreCase = true) == true) {
+                    Future.failedFuture(IllegalArgumentException(error.message))
+                } else {
+                    Future.failedFuture(error)
+                }
             }
-        }
     }
 
     override fun updateStatus(paymentId: UUID, newStatus: PaymentStatus, failureReason: String?): Future<Void> {
-        return db.preparedQuery("select change_payment_status($1, $2::payment_status, $3)")
+        return pool.preparedQuery("select change_payment_status($1::uuid, $2::payment_status, $3::varchar)")
             .execute(Tuple.of(paymentId, newStatus.name, failureReason))
             .mapEmpty()
     }
@@ -67,11 +67,9 @@ class PostgresPaymentRepository(private val db: Pool) : PaymentRepositoryPort {
         status: String,
         errorCode: String?
     ): Future<Void> {
-        return db.preparedQuery(
-            """
-            select register_payment_attempt($1, $2, $3, $4::attempt_status, $5)
-            """.trimIndent()
-        ).execute(Tuple.of(paymentId, providerId, attemptNumber, status, errorCode)).mapEmpty()
+        return pool.preparedQuery("select register_payment_attempt($1::uuid, $2::varchar, $3::integer, $4::attempt_status, $5::varchar)")
+            .execute(Tuple.of(paymentId, providerId, attemptNumber, status, errorCode))
+            .mapEmpty()
     }
 
     override fun addProviderResponse(
@@ -80,100 +78,104 @@ class PostgresPaymentRepository(private val db: Pool) : PaymentRepositoryPort {
         responseCode: Int,
         responseStatus: String
     ): Future<Void> {
-        return db.preparedQuery(
-            """
-            select register_provider_response($1, $2, $3::smallint, $4::provider_response_status)
-            """.trimIndent()
-        ).execute(Tuple.of(paymentId, providerId, responseCode, responseStatus)).mapEmpty()
+        return pool.preparedQuery("select register_provider_response($1::uuid, $2::varchar, $3::smallint, $4::provider_response_status)")
+            .execute(Tuple.of(paymentId, providerId, responseCode, responseStatus))
+            .mapEmpty()
     }
 
     override fun fetchPayment(paymentId: UUID): Future<Payment> {
-        return db.preparedQuery(
-            """
-            select payment_id, client_id, provider_id, service_category, amount, currency, requisite, status, failure_reason, created_at, updated_at
-            from get_payment($1)
-            """.trimIndent()
-        ).execute(Tuple.of(paymentId)).compose { rows ->
-            val row = rows.firstOrNull()
-            if (row == null) Future.failedFuture("payment not found")
-            else Future.succeededFuture(paymentFromRow(row))
-        }
+        return pool.preparedQuery("select * from get_payment($1::uuid)")
+            .execute(Tuple.of(paymentId))
+            .compose { rows ->
+                val row = rows.firstOrNull()
+                if (row == null) Future.failedFuture(NoSuchElementException("payment not found"))
+                else Future.succeededFuture(row.toPayment())
+            }
     }
 
     override fun fetchHistory(paymentId: UUID): Future<List<PaymentStatusChange>> {
-        return db.preparedQuery(
-            """
-            select old_status, new_status, changed_at
-            from get_payment_history($1)
-            """.trimIndent()
-        ).execute(Tuple.of(paymentId)).map { rows ->
-            var previousChangedAt: java.time.OffsetDateTime? = null
-            rows.map { row ->
-                val changedAt = row.getOffsetDateTime("changed_at")
-                val durationMs = previousChangedAt?.let { Duration.between(it, changedAt).toMillis().coerceAtLeast(0) } ?: 0
-                previousChangedAt = changedAt
-                PaymentStatusChange(
-                    oldStatus = row.getString("old_status")?.let(PaymentStatus::valueOf),
-                    newStatus = PaymentStatus.valueOf(row.getString("new_status")),
-                    changedAt = changedAt,
-                    durationMs = durationMs
-                )
+        return pool.preparedQuery("select * from get_payment_history($1::uuid)")
+            .execute(Tuple.of(paymentId))
+            .map { rows ->
+                val changes = rows.map { it.toStatusChange() }
+                changes.mapIndexed { index, change ->
+                    val previousAt = changes.getOrNull(index - 1)?.changedAt ?: change.changedAt
+                    change.copy(durationMs = Duration.between(previousAt, change.changedAt).toMillis().coerceAtLeast(0))
+                }
             }
-        }
     }
 
     override fun listPayments(clientId: String?): Future<List<Payment>> {
-        return db.preparedQuery(
-            """
-            select payment_id, client_id, provider_id, service_category, amount, currency, requisite, status, failure_reason, created_at, updated_at
-            from list_payments($1, $2)
-            """.trimIndent()
-        ).execute(Tuple.of(clientId, 50)).map { rows -> rows.map(::paymentFromRow) }
+        return pool.preparedQuery("select * from list_payments($1::varchar, 100::integer)")
+            .execute(Tuple.of(clientId))
+            .map { rows -> rows.map { it.toPayment() } }
     }
 
     override fun claimPaymentOutboxBatch(limit: Int): Future<List<PaymentOutboxItem>> {
-        return db.preparedQuery(
-            """
-            select outbox_id, payment_id, provider_id, event_type
-            from claim_payment_outbox_batch($1)
-            """.trimIndent()
-        ).execute(Tuple.of(limit)).map { rows ->
-            rows.map { row ->
-                PaymentOutboxItem(
-                    outboxId = row.getUUID("outbox_id"),
-                    paymentId = row.getUUID("payment_id"),
-                    providerId = row.getString("provider_id"),
-                    eventType = row.getString("event_type")
-                )
-            }
-        }
+        return pool.preparedQuery("select * from claim_payment_outbox_batch($1::integer)")
+            .execute(Tuple.of(limit))
+            .map { rows -> rows.map { it.toPaymentOutboxItem() } }
     }
 
     override fun markPaymentOutboxDone(outboxId: UUID): Future<Void> {
-        return db.preparedQuery("select mark_payment_outbox_done($1)")
+        return pool.preparedQuery("select mark_payment_outbox_done($1::uuid)")
             .execute(Tuple.of(outboxId))
             .mapEmpty()
     }
 
     override fun releaseStalePaymentOutbox(afterSeconds: Int): Future<Int> {
-        return db.preparedQuery("select release_stale_payment_outbox($1) as released")
+        return pool.preparedQuery("select release_stale_payment_outbox($1::integer) as released")
             .execute(Tuple.of(afterSeconds))
-            .map { rows -> rows.firstOrNull()?.getInteger("released") ?: 0 }
+            .map { rows -> rows.first().getInteger("released") }
     }
 
-    private fun paymentFromRow(row: Row): Payment {
-        return Payment(
-            paymentId = row.getUUID("payment_id"),
-            clientId = row.getString("client_id"),
-            providerId = row.getString("provider_id"),
-            serviceCategory = row.getString("service_category"),
-            amount = row.getBigDecimal("amount"),
-            currency = row.getString("currency"),
-            requisite = row.getString("requisite"),
-            status = PaymentStatus.valueOf(row.getString("status")),
-            failureReason = row.getString("failure_reason"),
-            createdAt = row.getOffsetDateTime("created_at"),
-            updatedAt = row.getOffsetDateTime("updated_at")
+    private fun Row.toCreatePaymentResult(): CreatePaymentResult {
+        return CreatePaymentResult(
+            paymentId = getUUID("payment_id"),
+            clientId = getString("client_id"),
+            providerId = getString("provider_id"),
+            serviceCategory = getString("service_category"),
+            amount = getBigDecimal("amount"),
+            currency = getString("currency"),
+            status = PaymentStatus.valueOf(getString("status")),
+            idempotentReplay = getBoolean("idempotent_replay")
         )
     }
+
+    private fun Row.toPayment(): Payment {
+        return Payment(
+            paymentId = getUUID("payment_id"),
+            clientId = getString("client_id"),
+            providerId = getString("provider_id"),
+            serviceCategory = getString("service_category"),
+            amount = getBigDecimal("amount"),
+            currency = getString("currency"),
+            requisite = getString("requisite"),
+            status = PaymentStatus.valueOf(getString("status")),
+            failureReason = getString("failure_reason"),
+            createdAt = getOffsetDateTime("created_at"),
+            updatedAt = getOffsetDateTime("updated_at")
+        )
+    }
+
+    private fun Row.toStatusChange(): PaymentStatusChange {
+        return PaymentStatusChange(
+            oldStatus = getString("old_status")?.let(PaymentStatus::valueOf),
+            newStatus = PaymentStatus.valueOf(getString("new_status")),
+            changedAt = getOffsetDateTime("changed_at"),
+            durationMs = 0
+        )
+    }
+
+    private fun Row.toPaymentOutboxItem(): PaymentOutboxItem {
+        return PaymentOutboxItem(
+            outboxId = getUUID("outbox_id"),
+            paymentId = getUUID("payment_id"),
+            providerId = getString("provider_id"),
+            eventType = getString("event_type")
+        )
+    }
+
+    private fun <T> Iterable<T>.firstOrNull(): T? = iterator().let { if (it.hasNext()) it.next() else null }
 }
+

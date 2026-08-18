@@ -11,7 +11,7 @@ class PaymentOutboxWorker(
     private val vertx: Vertx,
     private val repository: PaymentRepositoryPort,
     private val batchSize: Int = envInt("PAYMENT_OUTBOX_BATCH_SIZE", 64),
-    private val intervalMs: Long = envInt("PAYMENT_OUTBOX_INTERVAL_MS", 50).toLong()
+    private val intervalMs: Long = envInt("PAYMENT_OUTBOX_INTERVAL_MS", defaultIntervalMs()).toLong()
 ) {
     private var running = false
 
@@ -44,8 +44,17 @@ class PaymentOutboxWorker(
                             )
                             repository.markPaymentOutboxDone(item.outboxId)
                         }
-                        Future.all(marks).onComplete { running = false }
+                        Future.all(marks).onComplete {
+                            running = false
+                            drain()
+                        }
                     }
             }
+    }
+
+    private companion object {
+        fun defaultIntervalMs(): Int {
+            return if (System.getenv("DYNO") != null) 1000 else 250
+        }
     }
 }

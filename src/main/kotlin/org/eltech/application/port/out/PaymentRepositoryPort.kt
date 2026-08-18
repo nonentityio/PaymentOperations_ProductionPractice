@@ -21,3 +21,4 @@ interface PaymentRepositoryPort {
     fun markPaymentOutboxDone(outboxId: UUID): Future<Void>
     fun releaseStalePaymentOutbox(afterSeconds: Int): Future<Int>
 }
+

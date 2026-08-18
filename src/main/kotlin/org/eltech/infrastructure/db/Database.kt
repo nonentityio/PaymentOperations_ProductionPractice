@@ -15,8 +15,8 @@ object Database {
             .connectingTo(PgConnectOptionsFactory.fromEnv())
             .with(
                 PoolOptions()
-                    .setMaxSize(envInt("PG_POOL_SIZE", 16))
-                    .setMaxWaitQueueSize(envInt("PG_WAIT_QUEUE_SIZE", 2048))
+                    .setMaxSize(defaultPoolSize())
+                    .setMaxWaitQueueSize(envInt("PG_WAIT_QUEUE_SIZE", 1024))
             )
             .using(vertx)
             .build()
@@ -30,5 +30,10 @@ object Database {
         val stream = Database::class.java.getResourceAsStream("/db/schema.sql")
             ?: error("db/schema.sql resource was not found")
         return stream.use { it.readBytes().toString(StandardCharsets.UTF_8) }
+    }
+
+    private fun defaultPoolSize(): Int {
+        val fallback = if (System.getenv("DYNO") != null) 8 else 16
+        return envInt("PG_POOL_SIZE", fallback)
     }
 }

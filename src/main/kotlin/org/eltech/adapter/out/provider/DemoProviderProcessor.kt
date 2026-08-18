@@ -1,97 +1,70 @@
 package org.eltech.adapter.out.provider
 
+import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.core.eventbus.Message
 import io.vertx.core.json.JsonObject
 import org.eltech.application.port.out.PaymentRepositoryPort
+import org.eltech.domain.model.Payment
 import org.eltech.domain.model.PaymentStatus
 import org.eltech.util.envInt
 import java.util.UUID
 
 class DemoProviderProcessor(
     private val vertx: Vertx,
-    private val repository: PaymentRepositoryPort
+    private val repository: PaymentRepositoryPort,
+    private val finalDelayMs: Long = envInt("DEMO_PROVIDER_FINAL_DELAY_MS", 2_000).toLong()
 ) {
-    private val firstResponseDelayMs = envInt("PAYMENT_PROVIDER_FIRST_DELAY_MS", 40).toLong()
-    private val successDelayMs = envInt("PAYMENT_PROVIDER_SUCCESS_DELAY_MS", 60).toLong()
-    private val retryDelayMs = envInt("PAYMENT_PROVIDER_RETRY_DELAY_MS", 120).toLong()
-    private val holdDelayMs = envInt("PAYMENT_PROVIDER_HOLD_DELAY_MS", 30_000).toLong()
-
     fun processPayment(message: Message<JsonObject>) {
-        val paymentId = UUID.fromString(message.body().getString("paymentId"))
-        val providerId = message.body().getString("providerId")
+        val body = message.body()
+        val paymentId = runCatching { UUID.fromString(body.getString("paymentId")) }.getOrNull() ?: return
+        val providerId = body.getString("providerId") ?: return
 
-        repository.updateStatus(paymentId, PaymentStatus.CHECK_REQUISITE, null)
-            .compose { repository.addAttempt(paymentId, providerId, 1, "STARTED", null) }
-            .onSuccess {
-                vertx.setTimer(firstResponseDelayMs) {
-                    repository.fetchPayment(paymentId).onSuccess { payment ->
-                        if (payment.status == PaymentStatus.CANCELLED) {
-                            return@onSuccess
-                        }
-
-                        if (payment.requisite.contains("HOLD", ignoreCase = true)) {
-                            holdPaymentBeforeProvider(paymentId, providerId)
-                        } else if (payment.requisite.startsWith("BAD", ignoreCase = true) || payment.requisite.contains("FAIL", ignoreCase = true)) {
-                            rejectInvalidRequisite(paymentId, providerId)
-                        } else if (payment.requisite.contains("TIMEOUT", ignoreCase = true)) {
-                            confirmPayment(paymentId).onSuccess {
-                                simulateRetry(paymentId, providerId, 1)
-                            }
-                        } else {
-                            confirmPayment(paymentId).onSuccess {
-                                acceptPayment(paymentId, providerId)
-                            }
-                        }
-                    }
+        repository.fetchPayment(paymentId)
+            .compose { payment ->
+                if (payment.status == PaymentStatus.CANCELLED) {
+                    Future.succeededFuture()
+                } else {
+                    repository.updateStatus(paymentId, PaymentStatus.CHECK_REQUISITE, null)
+                        .compose { repository.addAttempt(paymentId, providerId, 1, "STARTED", null) }
+                        .compose { repository.updateStatus(paymentId, PaymentStatus.CONFIRMED, null) }
+                        .compose { repository.updateStatus(paymentId, PaymentStatus.PROCESSING, null) }
+                        .compose { completeAfterDelay(paymentId, providerId) }
                 }
             }
+            .onFailure { error -> println("provider processing failed for $paymentId: ${error.message}") }
     }
 
-    private fun confirmPayment(paymentId: UUID) =
-        repository.updateStatus(paymentId, PaymentStatus.CONFIRMED, null)
-
-    private fun holdPaymentBeforeProvider(paymentId: UUID, providerId: String) {
-        vertx.setTimer(holdDelayMs) {
-            repository.fetchPayment(paymentId).onSuccess { payment ->
-                if (payment.status != PaymentStatus.CANCELLED) {
-                    confirmPayment(paymentId).onSuccess {
-                        acceptPayment(paymentId, providerId)
+    private fun completeAfterDelay(paymentId: UUID, providerId: String): Future<Void> {
+        val promise = io.vertx.core.Promise.promise<Void>()
+        vertx.setTimer(finalDelayMs.coerceAtLeast(0)) {
+            repository.fetchPayment(paymentId)
+                .compose { payment ->
+                    if (payment.status == PaymentStatus.CANCELLED) {
+                        Future.succeededFuture()
+                    } else {
+                        completePayment(payment, providerId)
                     }
                 }
-            }
+                .onSuccess { promise.complete() }
+                .onFailure(promise::fail)
+        }
+        return promise.future()
+    }
+
+    private fun completePayment(payment: Payment, providerId: String): Future<Void> {
+        val failed = payment.requisite.startsWith("NET-FAIL-", ignoreCase = true) ||
+            payment.requisite.startsWith("BAD", ignoreCase = true)
+
+        return if (failed) {
+            repository.addProviderResponse(payment.paymentId, providerId, 502, "ERROR")
+                .compose { repository.addAttempt(payment.paymentId, providerId, 1, "FAILED", "DEMO_PROVIDER_ERROR") }
+                .compose { repository.updateStatus(payment.paymentId, PaymentStatus.FAILED, "Demo provider rejected payment") }
+        } else {
+            repository.addProviderResponse(payment.paymentId, providerId, 200, "ACCEPTED")
+                .compose { repository.addAttempt(payment.paymentId, providerId, 1, "SUCCESS", null) }
+                .compose { repository.updateStatus(payment.paymentId, PaymentStatus.SUCCESS, null) }
         }
     }
-
-    private fun rejectInvalidRequisite(paymentId: UUID, providerId: String) {
-        repository.addProviderResponse(paymentId, providerId, 422, "REQUISITE_INVALID")
-            .compose { repository.updateStatus(paymentId, PaymentStatus.FAILED, "Invalid requisite") }
-    }
-
-    private fun acceptPayment(paymentId: UUID, providerId: String) {
-        repository.updateStatus(paymentId, PaymentStatus.PROCESSING, null)
-            .compose { repository.addProviderResponse(paymentId, providerId, 200, "ACCEPTED") }
-            .onSuccess {
-                vertx.setTimer(successDelayMs) {
-                    repository.updateStatus(paymentId, PaymentStatus.SUCCESS, null)
-                }
-            }
-    }
-
-    private fun simulateRetry(paymentId: UUID, providerId: String, attempt: Int) {
-        repository.updateStatus(paymentId, PaymentStatus.PROCESSING, "Provider timeout, retry scheduled")
-            .compose { repository.addProviderResponse(paymentId, providerId, 504, "TIMEOUT") }
-            .onSuccess {
-                if (attempt >= 3) {
-                    vertx.setTimer(successDelayMs) {
-                        repository.updateStatus(paymentId, PaymentStatus.FAILED, "Provider timeout after retries")
-                    }
-                } else {
-                    vertx.setTimer(retryDelayMs) {
-                        repository.addAttempt(paymentId, providerId, attempt + 1, "RETRY", "TIMEOUT")
-                            .onSuccess { simulateRetry(paymentId, providerId, attempt + 1) }
-                    }
-                }
-            }
-    }
 }
+
