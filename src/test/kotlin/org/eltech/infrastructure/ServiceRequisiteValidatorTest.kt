@@ -20,6 +20,10 @@ class ServiceRequisiteValidatorTest {
         assertTrue(ServiceRequisiteValidator.validate("UTILITY", "utility.gas", "GAS-12345678", BigDecimal("180.00")).valid)
         assertTrue(ServiceRequisiteValidator.validate("UTILITY", "internet.home", "NET-12345678", BigDecimal("650.00")).valid)
         assertTrue(ServiceRequisiteValidator.validate("UTILITY", "internet.failed", "NET-FAIL-12345678", BigDecimal("650.00")).valid)
+        assertTrue(ServiceRequisiteValidator.validate("UTILITY", "utility.heating", "HEAT-12345678", BigDecimal("650.00")).valid)
+        assertTrue(ServiceRequisiteValidator.validate("UTILITY", "utility.trash", "TRASH-12345678", BigDecimal("650.00")).valid)
+        assertTrue(ServiceRequisiteValidator.validate("UTILITY", "utility.rent", "RENT-12345678", BigDecimal("650.00")).valid)
+        assertTrue(ServiceRequisiteValidator.validate("UTILITY", "utility.general", "UTIL-12345678", BigDecimal("650.00")).valid)
 
         assertFalse(ServiceRequisiteValidator.validate("UTILITY", "utility.water", "EL-12345678", BigDecimal("180.00")).valid)
         assertFalse(ServiceRequisiteValidator.validate("UTILITY", "internet.home", "GAS-12345678", BigDecimal("650.00")).valid)
@@ -28,8 +32,8 @@ class ServiceRequisiteValidatorTest {
 
     @Test
     fun cardServiceRequiresCardNumber() {
-        assertTrue(ServiceRequisiteValidator.validate("CARD_PAYMENT", "card.repayment", "4111 1111 1111 1111", BigDecimal("1000.00")).valid)
         assertTrue(ServiceRequisiteValidator.validate("CARD_PAYMENT", "card.repayment", "4111111111111111", BigDecimal("1000.00")).valid)
+        assertFalse(ServiceRequisiteValidator.validate("CARD_PAYMENT", "card.repayment", "4111 1111 1111 1111", BigDecimal("1000.00")).valid)
         assertFalse(ServiceRequisiteValidator.validate("CARD_PAYMENT", "card.repayment", "EL-12345678", BigDecimal("1000.00")).valid)
     }
 
