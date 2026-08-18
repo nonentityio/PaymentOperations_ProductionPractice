@@ -129,6 +129,12 @@ class PostgresPaymentRepository(private val pool: Pool) : PaymentRepositoryPort 
             .map { rows -> rows.first().getInteger("released") }
     }
 
+    override fun failStaleProcessing(afterSeconds: Int): Future<Int> {
+        return pool.preparedQuery("select expire_stale_processing_payments($1::integer) as expired")
+            .execute(Tuple.of(afterSeconds))
+            .map { rows -> rows.first().getInteger("expired") }
+    }
+
     private fun Row.toCreatePaymentResult(): CreatePaymentResult {
         return CreatePaymentResult(
             paymentId = getUUID("payment_id"),
@@ -178,4 +184,3 @@ class PostgresPaymentRepository(private val pool: Pool) : PaymentRepositoryPort 
 
     private fun <T> Iterable<T>.firstOrNull(): T? = iterator().let { if (it.hasNext()) it.next() else null }
 }
-

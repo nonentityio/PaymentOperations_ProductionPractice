@@ -827,6 +827,38 @@ begin
 end;
 $$;
 
+create or replace function expire_stale_processing_payments(p_after_seconds integer default 30)
+returns integer
+language sql
+as $$
+    with expired as materialized (
+        update payments
+        set status = 'FAILED',
+            failure_reason = 'Provider processing timeout',
+            updated_at = now()
+        where status = 'PROCESSING'
+          and updated_at < now() - make_interval(secs => greatest(5, coalesce(p_after_seconds, 30)))
+        returning payment_id, provider_id
+    ),
+    closed_attempts as (
+        update payment_attempts a
+        set status = 'FAILED',
+            error_code = 'PROVIDER_TIMEOUT',
+            finished_at = now()
+        from expired e
+        where a.payment_id = e.payment_id
+          and a.status in ('STARTED', 'RETRY')
+        returning a.payment_id
+    ),
+    timeout_responses as (
+        insert into provider_responses (payment_id, provider_id, response_code, response_status)
+        select e.payment_id, e.provider_id, 504, 'TIMEOUT'
+        from expired e
+        returning payment_id
+    )
+    select count(*)::integer from expired;
+$$;
+
 create or replace function get_payment_history(p_payment_id uuid)
 returns table (
     old_status payment_status,

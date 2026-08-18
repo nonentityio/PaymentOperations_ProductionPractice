@@ -20,5 +20,5 @@ interface PaymentRepositoryPort {
     fun claimPaymentOutboxBatch(limit: Int): Future<List<PaymentOutboxItem>>
     fun markPaymentOutboxDone(outboxId: UUID): Future<Void>
     fun releaseStalePaymentOutbox(afterSeconds: Int): Future<Int>
+    fun failStaleProcessing(afterSeconds: Int): Future<Int> = Future.succeededFuture(0)
 }
-

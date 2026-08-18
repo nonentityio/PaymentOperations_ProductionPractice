@@ -22,7 +22,7 @@ class DemoProviderProcessor(
 
         repository.fetchPayment(paymentId)
             .compose { payment ->
-                if (payment.status == PaymentStatus.CANCELLED) {
+                if (payment.status in terminalStatuses) {
                     Future.succeededFuture()
                 } else {
                     repository.updateStatus(paymentId, PaymentStatus.CHECK_REQUISITE, null)
@@ -40,7 +40,7 @@ class DemoProviderProcessor(
         vertx.setTimer(finalDelayMs.coerceAtLeast(0)) {
             repository.fetchPayment(paymentId)
                 .compose { payment ->
-                    if (payment.status == PaymentStatus.CANCELLED) {
+                    if (payment.status in terminalStatuses) {
                         Future.succeededFuture()
                     } else {
                         completePayment(payment, providerId)
@@ -66,5 +66,8 @@ class DemoProviderProcessor(
                 .compose { repository.updateStatus(payment.paymentId, PaymentStatus.SUCCESS, null) }
         }
     }
-}
 
+    private companion object {
+        val terminalStatuses = setOf(PaymentStatus.SUCCESS, PaymentStatus.FAILED, PaymentStatus.CANCELLED)
+    }
+}

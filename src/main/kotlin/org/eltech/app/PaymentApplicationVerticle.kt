@@ -9,6 +9,7 @@ import io.vertx.ext.web.handler.BodyHandler
 import io.vertx.ext.web.handler.StaticHandler
 import io.vertx.sqlclient.Pool
 import org.eltech.adapter.`in`.eventbus.PaymentOutboxWorker
+import org.eltech.adapter.`in`.eventbus.ProcessingTimeoutWorker
 import org.eltech.adapter.`in`.eventbus.VertxPaymentEventPublisher
 import org.eltech.adapter.`in`.http.AuthHandler
 import org.eltech.adapter.`in`.http.HealthRoutes
@@ -45,6 +46,7 @@ class PaymentApplicationVerticle : AbstractVerticle() {
 
         vertx.eventBus().consumer<JsonObject>(EventBusAddresses.PAYMENT_CREATED, processor::processPayment)
         PaymentOutboxWorker(vertx, repository).start()
+        ProcessingTimeoutWorker(vertx, repository).start()
         return startHttpServer(paymentService)
     }
 
